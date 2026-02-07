@@ -1,0 +1,7 @@
+# BGR Dispatch – Netlify (dispatch.bgrdayton.com)
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  NODE_VERSION = "20"

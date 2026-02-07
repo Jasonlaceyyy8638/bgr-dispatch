@@ -1,0 +1,452 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
+import { useParams, useRouter } from 'next/navigation';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+
+type PaymentMethod = 'card' | 'cash' | 'check' | null;
+
+export default function TechPaymentIdPage() {
+  const params = useParams();
+  const router = useRouter();
+  const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const [job, setJob] = useState<any>(null);
+  const [clientSecret, setClientSecret] = useState('');
+  const [paymentIntentError, setPaymentIntentError] = useState<string | null>(null);
+  const [stripePromise, setStripePromise] = useState<ReturnType<typeof loadStripe> | null>(null);
+  const [stripeKeyError, setStripeKeyError] = useState(false);
+  const [method, setMethod] = useState<PaymentMethod>(null);
+
+  useEffect(() => {
+    fetch('/api/stripe-config')
+      .then((r) => r.json())
+      .then(({ publishableKey }: { publishableKey?: string }) => {
+        const key = (publishableKey || '').trim();
+        if (key) setStripePromise(loadStripe(key));
+        else setStripeKeyError(true);
+      })
+      .catch(() => setStripeKeyError(true));
+  }, []);
+
+  useEffect(() => {
+    if (!id) return;
+    (async () => {
+      const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
+      if (!data) return;
+      setJob(data);
+      const amount = Number(data.price) || 0;
+      if (amount <= 0) return;
+      const res = await fetch('/api/payment-intent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ amount }),
+      });
+      const json = await res.json();
+      if (json.clientSecret) setClientSecret(json.clientSecret);
+      else if (json.error) setPaymentIntentError(json.error);
+    })();
+  }, [id]);
+
+  const amountDue = Number(job?.price) || 0;
+  const inputClass = 'w-full bg-black border border-neutral-800 p-3 sm:p-4 text-white font-semibold text-sm outline-none focus:border-red-600 rounded-sm';
+
+  const goBack = () => router.push(`/tech/job/${id}`);
+
+  if (stripeKeyError) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <p className="text-amber-500 font-bold uppercase text-sm">Stripe key not set</p>
+          <p className="text-neutral-400 text-sm">Add STRIPE_PUBLISHABLE_KEY to .env.local for card payments.</p>
+          <button type="button" onClick={goBack} className="inline-block bg-neutral-800 text-white font-bold py-3 px-6 uppercase text-xs rounded-sm">Back to job</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (job && amountDue <= 0) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <p className="text-amber-500 font-bold uppercase text-sm">No amount to charge</p>
+          <p className="text-neutral-400 text-sm">Have the customer sign the authorization first, then complete the work. Come back here to collect payment.</p>
+          <button type="button" onClick={goBack} className="inline-block bg-neutral-800 text-white font-bold py-3 px-6 uppercase text-xs rounded-sm">Back to job</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentIntentError && method !== 'cash' && method !== 'check') {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <p className="text-amber-500 font-bold uppercase text-sm">Card setup failed</p>
+          <p className="text-neutral-400 text-sm">{paymentIntentError}</p>
+          <button type="button" onClick={goBack} className="inline-block bg-neutral-800 text-white font-bold py-3 px-6 uppercase text-xs rounded-sm">Back to job</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!job) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6">
+        <p className="text-white font-bold uppercase animate-pulse">Loading…</p>
+      </div>
+    );
+  }
+
+  // Method selection screen
+  if (method === null) {
+    return (
+      <div className="min-h-screen bg-black p-4 sm:p-6 text-white">
+        <div className="max-w-md mx-auto space-y-6 pt-6">
+          <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
+          </div>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">How did they pay?</p>
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              type="button"
+              onClick={() => setMethod('card')}
+              className="bg-neutral-900 border border-neutral-700 p-4 rounded-sm text-left flex items-center gap-3 active:bg-neutral-800"
+            >
+              <span className="text-2xl">💳</span>
+              <span className="font-bold uppercase text-sm">Card</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod('cash')}
+              className="bg-neutral-900 border border-neutral-700 p-4 rounded-sm text-left flex items-center gap-3 active:bg-neutral-800"
+            >
+              <span className="text-2xl">💵</span>
+              <span className="font-bold uppercase text-sm">Cash</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMethod('check')}
+              className="bg-neutral-900 border border-neutral-700 p-4 rounded-sm text-left flex items-center gap-3 active:bg-neutral-800"
+            >
+              <span className="text-2xl">📄</span>
+              <span className="font-bold uppercase text-sm">Check</span>
+            </button>
+          </div>
+          <button type="button" onClick={goBack} className="w-full py-3 text-neutral-500 font-bold uppercase text-xs rounded-sm border border-neutral-800">
+            Back to job
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Cash
+  if (method === 'cash') {
+    return (
+      <CashForm job={job} jobId={id!} amountDue={amountDue} onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)} onBack={() => setMethod(null)} inputClass={inputClass} />
+    );
+  }
+
+  // Check
+  if (method === 'check') {
+    return (
+      <CheckForm job={job} jobId={id!} amountDue={amountDue} onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)} onBack={() => setMethod(null)} inputClass={inputClass} />
+    );
+  }
+
+  // Card (Stripe) – only load when method is card
+  if (method === 'card' && stripePromise && clientSecret) {
+    return (
+      <div className="min-h-screen bg-black p-4 sm:p-6 text-white">
+        <div className="max-w-md mx-auto space-y-6 pt-6">
+          <button type="button" onClick={() => setMethod(null)} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
+          <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
+          </div>
+          <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night' } }}>
+            <CardForm job={job} jobId={id ?? ''} onBack={() => setMethod(null)} />
+          </Elements>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <p className="text-white font-bold uppercase animate-pulse">Loading…</p>
+    </div>
+  );
+}
+
+function CashForm({
+  job,
+  jobId,
+  amountDue,
+  onDone,
+  onBack,
+  inputClass,
+}: {
+  job: any;
+  jobId: string;
+  amountDue: number;
+  onDone: () => void;
+  onBack: () => void;
+  inputClass: string;
+}) {
+  const [cashReceived, setCashReceived] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const amount = parseFloat(cashReceived);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setError('Enter the amount of cash received.');
+      return;
+    }
+    setSaving(true);
+    const { error: err } = await supabase
+      .from('jobs')
+      .update({
+        status: 'Closed',
+        payment_method: 'cash',
+        payment_amount: amount,
+      })
+      .eq('id', jobId);
+    if (err) {
+      setSaving(false);
+      setError(err.message);
+      return;
+    }
+    const phone = (job?.phone_number || '').toString().trim();
+    const customerName = (job?.customer_name || '').toString().trim();
+    if (phone && customerName) {
+      try {
+        const r = await fetch('/api/customers/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: customerName, phone }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && j?.error) console.warn('Customer save:', j.error);
+      } catch (_) {}
+    }
+    setSaving(false);
+    onDone();
+  }
+
+  return (
+    <div className="min-h-screen bg-black p-4 sm:p-6 text-white">
+      <div className="max-w-md mx-auto space-y-6 pt-6">
+        <button type="button" onClick={onBack} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
+        <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+          <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Enter amount of cash received (required)</p>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            className={inputClass}
+            placeholder="0.00"
+            value={cashReceived}
+            onChange={(e) => setCashReceived(e.target.value)}
+          />
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button type="submit" disabled={saving} className="w-full bg-green-600 hover:bg-green-500 py-4 font-bold uppercase text-sm text-white rounded-sm disabled:opacity-50">
+            {saving ? 'Saving…' : 'Record cash & close job'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CheckForm({
+  job,
+  jobId,
+  amountDue,
+  onDone,
+  onBack,
+  inputClass,
+}: {
+  job: any;
+  jobId: string;
+  amountDue: number;
+  onDone: () => void;
+  onBack: () => void;
+  inputClass: string;
+}) {
+  const [checkNumber, setCheckNumber] = useState('');
+  const [checkAmount, setCheckAmount] = useState('');
+  const [checkPhoto, setCheckPhoto] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setCheckPhoto(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    const amount = parseFloat(checkAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setError('Enter the check amount.');
+      return;
+    }
+    if (!checkNumber.trim()) {
+      setError('Enter the check number.');
+      return;
+    }
+    if (!checkPhoto) {
+      setError('Take a photo of the check (required).');
+      return;
+    }
+    setSaving(true);
+    const { error: err } = await supabase
+      .from('jobs')
+      .update({
+        status: 'Closed',
+        payment_method: 'check',
+        payment_amount: amount,
+        check_number: checkNumber.trim(),
+        check_photo_url: checkPhoto,
+      })
+      .eq('id', jobId);
+    if (err) {
+      setSaving(false);
+      setError(err.message);
+      return;
+    }
+    const phone = (job?.phone_number || '').toString().trim();
+    const customerName = (job?.customer_name || '').toString().trim();
+    if (phone && customerName) {
+      try {
+        const r = await fetch('/api/customers/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: customerName, phone }),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok && j?.error) console.warn('Customer save:', j.error);
+      } catch (_) {}
+    }
+    setSaving(false);
+    onDone();
+  }
+
+  return (
+    <div className="min-h-screen bg-black p-4 sm:p-6 text-white pb-24">
+      <div className="max-w-md mx-auto space-y-6 pt-6">
+        <button type="button" onClick={onBack} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
+        <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+          <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
+        </div>
+        <form onSubmit={submit} className="space-y-4">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Photo of check (required)</p>
+          <label className="block border border-neutral-700 border-dashed p-6 rounded-sm text-center cursor-pointer">
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
+            {checkPhoto ? (
+              <img src={checkPhoto} alt="Check" className="max-h-40 mx-auto rounded object-contain" />
+            ) : (
+              <span className="text-neutral-500 font-bold uppercase text-sm">Tap to take photo</span>
+            )}
+          </label>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Check number (required)</p>
+          <input
+            type="text"
+            required
+            className={inputClass}
+            placeholder="Check number"
+            value={checkNumber}
+            onChange={(e) => setCheckNumber(e.target.value)}
+          />
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Amount received (required)</p>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            required
+            className={inputClass}
+            placeholder="0.00"
+            value={checkAmount}
+            onChange={(e) => setCheckAmount(e.target.value)}
+          />
+          {error && <p className="text-red-500 text-sm">{error}</p>}
+          <button type="submit" disabled={saving} className="w-full bg-green-600 hover:bg-green-500 py-4 font-bold uppercase text-sm text-white rounded-sm disabled:opacity-50">
+            {saving ? 'Saving…' : 'Record check & close job'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function CardForm({ job, jobId, onBack }: { job: any; jobId: string; onBack: () => void }) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const router = useRouter();
+  const [processing, setProcessing] = useState(false);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setProcessing(true);
+    const { error } = await stripe.confirmPayment({
+      elements,
+      confirmParams: { return_url: `${typeof window !== 'undefined' ? window.location.origin : ''}/tech/invoice/${jobId}?receipt=1` },
+      redirect: 'if_required',
+    });
+    if (error) {
+      alert(error.message ?? 'Payment failed');
+      setProcessing(false);
+      return;
+    }
+    await supabase.from('jobs').update({ status: 'Closed', payment_method: 'card' }).eq('id', jobId);
+    const phone = (job?.phone_number || '').toString().trim();
+    const customerName = (job?.customer_name || '').toString().trim();
+    if (phone && customerName) {
+      try {
+        await fetch('/api/customers/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: customerName, phone }),
+        });
+      } catch (_) {}
+    }
+    alert('Payment successful. Sending you to send the receipt.');
+    router.push(`/tech/invoice/${jobId}?receipt=1`);
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Card</p>
+      <div className="min-h-[200px] rounded-sm border border-neutral-700 p-2 bg-neutral-900/50">
+        <PaymentElement options={{ layout: 'tabs' }} />
+      </div>
+      <button
+        type="submit"
+        disabled={!stripe || processing}
+        className="w-full bg-green-600 hover:bg-green-500 disabled:opacity-50 py-4 font-bold uppercase text-sm tracking-wider text-white rounded-sm active:scale-[0.98]"
+      >
+        {processing ? 'Processing…' : 'Confirm & pay'}
+      </button>
+      <button type="button" onClick={onBack} className="w-full py-3 text-neutral-500 font-bold uppercase text-xs rounded-sm border border-neutral-800">
+        Back
+      </button>
+    </form>
+  );
+}
