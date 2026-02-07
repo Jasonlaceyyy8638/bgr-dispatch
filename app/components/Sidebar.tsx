@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import UserMenu from './UserMenu';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -16,11 +17,6 @@ export default function Sidebar() {
       setUserRole('tech');
     }
   }, [pathname]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('tech_user');
-    window.location.href = '/login';
-  };
 
   const navLink = (href: string, label: string, active?: boolean) => (
     <Link
@@ -58,13 +54,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-neutral-900">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="w-full py-3 text-[10px] font-bold uppercase tracking-widest text-neutral-500 hover:text-red-600 text-left transition-colors"
-        >
-          Logout Session
-        </button>
+        <UserMenu variant="sidebar" />
       </div>
     </aside>
   );

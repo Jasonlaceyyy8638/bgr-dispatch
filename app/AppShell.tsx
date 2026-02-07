@@ -2,6 +2,7 @@
 
 import Sidebar from './components/Sidebar';
 import MobileNav from './components/MobileNav';
+import UserMenu from './components/UserMenu';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -16,7 +17,7 @@ export default function AppShell({
   useEffect(() => {
     const userData = localStorage.getItem('tech_user');
     if (!userData && pathname !== '/login') {
-      router.push('/login');
+      router.replace('/login');
     } else if (userData) {
       try {
         const user = JSON.parse(userData);
@@ -42,9 +43,14 @@ export default function AppShell({
 
   return (
     <div className="flex flex-col md:flex-row min-h-screen">
-      {/* Mobile: fixed logo header */}
-      <header className="md:hidden fixed top-0 left-0 right-0 h-16 sm:h-20 bg-black border-b border-neutral-900 flex items-center justify-center z-50 safe-area-inset-top">
-        <img src="/logo.png" alt="BGR Logo" className="h-9 sm:h-10 w-auto object-contain" />
+      {/* Mobile: fixed logo header + user menu */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-16 sm:h-20 bg-black border-b border-neutral-900 flex items-center justify-between px-4 z-50 safe-area-inset-top">
+        <div className="flex-1 min-w-0 flex justify-center">
+          <img src="/logo.png" alt="BGR Logo" className="h-9 sm:h-10 w-auto object-contain" />
+        </div>
+        <div className="absolute right-4 top-1/2 -translate-y-1/2">
+          <UserMenu variant="mobile" />
+        </div>
       </header>
 
       {/* Desktop: sidebar with logo */}
