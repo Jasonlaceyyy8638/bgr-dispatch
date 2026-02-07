@@ -43,20 +43,22 @@ export default function RevenuePage() {
     fetchRevenue();
   }, [unlocked]);
 
-  async function removeJob(jobId: string) {
+  async function removeJob(jobId: string | number) {
     if (!confirm('Remove this job from revenue? It will be deleted permanently.')) return;
+    const id = String(jobId ?? '').trim();
+    if (!id) return;
     try {
       const res = await fetch('/api/jobs/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: jobId }),
+        body: JSON.stringify({ id }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data?.error || 'Could not delete job.');
         return;
       }
-      setTxs((prev) => prev.filter((t) => t.id !== jobId));
+      setTxs((prev) => prev.filter((t) => String(t.id) !== id));
     } catch {
       alert('Could not delete job.');
     }

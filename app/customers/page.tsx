@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../lib/supabase';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 type Customer = { id: string; name: string; phone: string | null; email: string | null; created_at: string };
 
@@ -173,11 +173,23 @@ export default function CustomersPage() {
           <div className="p-8 text-center text-neutral-500 font-bold uppercase text-sm">Loading…</div>
         ) : customers.length === 0 ? (
           <div className="p-8 sm:p-12 text-center rounded-sm">
-            <p className="text-neutral-500 font-semibold uppercase text-sm tracking-wider mb-1">No customers yet</p>
-            <p className="text-neutral-600 text-xs uppercase tracking-wider">
-              Close a job with cash, check, or card to add customers here. Run the SQL in{' '}
-              <code className="text-neutral-500">supabase-customers-table.sql</code> if the table does not exist.
-            </p>
+            {!isSupabaseConfigured ? (
+              <>
+                <p className="text-red-500/90 font-semibold uppercase text-sm tracking-wider mb-1">Supabase not configured</p>
+                <p className="text-neutral-500 text-xs uppercase tracking-wider max-w-md mx-auto">
+                  Add <code className="text-neutral-400">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+                  <code className="text-neutral-400">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in Netlify → Site configuration → Environment variables, then redeploy.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-neutral-500 font-semibold uppercase text-sm tracking-wider mb-1">No customers yet</p>
+                <p className="text-neutral-600 text-xs uppercase tracking-wider">
+                  Close a job with cash, check, or card to add customers here. Run the SQL in{' '}
+                  <code className="text-neutral-500">supabase-customers-table.sql</code> if the table does not exist.
+                </p>
+              </>
+            )}
           </div>
         ) : (
           <div className="divide-y divide-neutral-800">

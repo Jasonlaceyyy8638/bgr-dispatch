@@ -1,6 +1,12 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+// Use fallbacks so we never pass undefined (avoids client crash when env vars missing at build time, e.g. Netlify)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? ''
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ''
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey)
+
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseKey || 'placeholder-anon-key'
+)

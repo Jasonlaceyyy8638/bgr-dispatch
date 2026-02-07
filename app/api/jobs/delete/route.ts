@@ -3,9 +3,10 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { id } = body;
-    if (!id || typeof id !== 'string') {
+    const body = await req.json().catch(() => ({}));
+    const rawId = body.id ?? body.jobId ?? body.job_id;
+    const id = rawId != null ? String(rawId).trim() : '';
+    if (!id) {
       return NextResponse.json({ error: 'Job id required' }, { status: 400 });
     }
 
