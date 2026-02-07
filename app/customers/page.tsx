@@ -3,7 +3,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
 type Customer = { id: string; name: string; phone: string | null; email: string | null; created_at: string };
 
@@ -21,8 +20,11 @@ type JobRow = {
   tech_users?: { name: string } | null;
 };
 
+type SupabaseRef = { supabase: { from: (table: string) => any }; isSupabaseConfigured: boolean };
+
 export default function CustomersPage() {
   const router = useRouter();
+  const [supabaseRef, setSupabaseRef] = useState<SupabaseRef | null>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -33,6 +35,17 @@ export default function CustomersPage() {
   const [lastTechName, setLastTechName] = useState<string | null>(null);
   const [invoiceSearchPhones, setInvoiceSearchPhones] = useState<string[]>([]);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  // Load Supabase dynamically so a bad key or import never crashes the whole app
+  useEffect(() => {
+    import('../lib/supabase')
+      .then((m) => setSupabaseRef({ supabase: m.supabase, isSupabaseConfigured: m.isSupabaseConfigured }))
+      .catch(() =>
+        import('../lib/supabase-fallback').then((m) =>
+          setSupabaseRef({ supabase: m.supabase, isSupabaseConfigured: m.isSupabaseConfigured })
+        )
+      );
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -48,15 +61,15 @@ export default function CustomersPage() {
       router.replace('/');
     }
   }, [router]);
-  if (allowed !== true) return null;
 
   useEffect(() => {
-    if (allowed !== true) return;
+    if (allowed !== true || !supabaseRef) return;
     const q = search.trim();
     if (!q) {
       setInvoiceSearchPhones([]);
       return;
     }
+    const supabase = supabaseRef.supabase;
     (async () => {
       try {
         const { data } = await supabase
@@ -69,7 +82,7 @@ export default function CustomersPage() {
         setInvoiceSearchPhones([]);
       }
     })();
-  }, [search, allowed]);
+  }, [search, allowed, supabaseRef]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -85,7 +98,8 @@ export default function CustomersPage() {
   }, [customers, search, invoiceSearchPhones]);
 
   useEffect(() => {
-    if (allowed !== true) return;
+    if (allowed !== true || !supabaseRef) return;
+    const supabase = supabaseRef.supabase;
     (async () => {
       setLoading(true);
       try {
@@ -100,14 +114,15 @@ export default function CustomersPage() {
         setLoading(false);
       }
     })();
-  }, [allowed]);
+  }, [allowed, supabaseRef]);
 
   useEffect(() => {
-    if (allowed !== true || !selected?.phone) {
+    if (allowed !== true || !supabaseRef || !selected?.phone) {
       setCustomerJobs([]);
       setLastTechName(null);
       return;
     }
+    const supabase = supabaseRef.supabase;
     (async () => {
       setJobsLoading(true);
       setLastTechName(null);
@@ -134,7 +149,17 @@ export default function CustomersPage() {
         setJobsLoading(false);
       }
     })();
-  }, [allowed, selected?.id, selected?.phone]);
+  }, [allowed, selected?.id, selected?.phone, supabaseRef]);
+
+  if (allowed !== true) return null;
+  if (supabaseRef === null) {
+    return (
+      <div className="max-w-4xl mx-auto pb-6 flex items-center justify-center min-h-[40vh]">
+        <p className="text-neutral-500 font-bold uppercase text-sm">Loading…</p>
+      </div>
+    );
+  }
+  const { isSupabaseConfigured } = supabaseRef;
 
   function copyPhone(phone: string) {
     navigator.clipboard.writeText(phone);
