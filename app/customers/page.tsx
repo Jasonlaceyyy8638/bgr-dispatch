@@ -35,6 +35,7 @@ export default function CustomersPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     try {
       const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
       const role = user.role || 'tech';
@@ -50,20 +51,25 @@ export default function CustomersPage() {
   if (allowed !== true) return null;
 
   useEffect(() => {
+    if (allowed !== true) return;
     const q = search.trim();
     if (!q) {
       setInvoiceSearchPhones([]);
       return;
     }
     (async () => {
-      const { data } = await supabase
-        .from('jobs')
-        .select('phone_number')
-        .ilike('invoice_number', `%${q}%`);
-      const phones = Array.from(new Set((data ?? []).map((r: { phone_number: string | null }) => r.phone_number).filter(Boolean))) as string[];
-      setInvoiceSearchPhones(phones);
+      try {
+        const { data } = await supabase
+          .from('jobs')
+          .select('phone_number')
+          .ilike('invoice_number', `%${q}%`);
+        const phones = Array.from(new Set((data ?? []).map((r: { phone_number: string | null }) => r.phone_number).filter(Boolean))) as string[];
+        setInvoiceSearchPhones(phones);
+      } catch {
+        setInvoiceSearchPhones([]);
+      }
     })();
-  }, [search]);
+  }, [search, allowed]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -79,19 +85,25 @@ export default function CustomersPage() {
   }, [customers, search, invoiceSearchPhones]);
 
   useEffect(() => {
+    if (allowed !== true) return;
     (async () => {
       setLoading(true);
-      const { data } = await supabase
-        .from('customers')
-        .select('id, name, phone, email, created_at')
-        .order('name');
-      setLoading(false);
-      setCustomers((data as Customer[]) || []);
+      try {
+        const { data } = await supabase
+          .from('customers')
+          .select('id, name, phone, email, created_at')
+          .order('name');
+        setCustomers((data as Customer[]) || []);
+      } catch {
+        setCustomers([]);
+      } finally {
+        setLoading(false);
+      }
     })();
-  }, []);
+  }, [allowed]);
 
   useEffect(() => {
-    if (!selected?.phone) {
+    if (allowed !== true || !selected?.phone) {
       setCustomerJobs([]);
       setLastTechName(null);
       return;
@@ -99,25 +111,30 @@ export default function CustomersPage() {
     (async () => {
       setJobsLoading(true);
       setLastTechName(null);
-      const phone = selected.phone!.trim();
-      const { data } = await supabase
-        .from('jobs')
-        .select('id, status, price, payment_amount, service_type, job_description, tech_notes, invoice_number, created_at, assigned_tech_id, tech_users(name)')
-        .eq('phone_number', phone)
-        .order('created_at', { ascending: false })
-        .limit(50);
-      const jobs = (data as JobRow[]) ?? [];
-      setCustomerJobs(jobs);
-      const first = jobs[0];
-      if (first?.tech_users?.name) {
-        setLastTechName(first.tech_users.name);
-      } else if (first?.assigned_tech_id) {
-        const { data: tech } = await supabase.from('tech_users').select('name').eq('id', first.assigned_tech_id).single();
-        setLastTechName(tech?.name ?? null);
+      try {
+        const phone = selected.phone!.trim();
+        const { data } = await supabase
+          .from('jobs')
+          .select('id, status, price, payment_amount, service_type, job_description, tech_notes, invoice_number, created_at, assigned_tech_id, tech_users(name)')
+          .eq('phone_number', phone)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        const jobs = (data as JobRow[]) ?? [];
+        setCustomerJobs(jobs);
+        const first = jobs[0];
+        if (first?.tech_users?.name) {
+          setLastTechName(first.tech_users.name);
+        } else if (first?.assigned_tech_id) {
+          const { data: tech } = await supabase.from('tech_users').select('name').eq('id', first.assigned_tech_id).single();
+          setLastTechName(tech?.name ?? null);
+        }
+      } catch {
+        setCustomerJobs([]);
+      } finally {
+        setJobsLoading(false);
       }
-      setJobsLoading(false);
     })();
-  }, [selected?.id, selected?.phone]);
+  }, [allowed, selected?.id, selected?.phone]);
 
   function copyPhone(phone: string) {
     navigator.clipboard.writeText(phone);

@@ -22,24 +22,45 @@ export default function RevenuePage() {
   const [loading, setLoading] = useState(true);
   const [revenueError, setRevenueError] = useState<string | null>(null);
 
+  async function fetchRevenue() {
+    setLoading(true);
+    setRevenueError(null);
+    try {
+      const res = await fetch('/api/revenue');
+      const json = await res.json();
+      setTxs(json.txs ?? []);
+      if (json.error && !(json.txs?.length)) setRevenueError(json.error);
+    } catch {
+      setTxs([]);
+      setRevenueError('Could not load revenue.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     if (!unlocked) return;
-    (async () => {
-      setLoading(true);
-      setRevenueError(null);
-      try {
-        const res = await fetch('/api/revenue');
-        const json = await res.json();
-        setTxs(json.txs ?? []);
-        if (json.error && !(json.txs?.length)) setRevenueError(json.error);
-      } catch {
-        setTxs([]);
-        setRevenueError('Could not load revenue.');
-      } finally {
-        setLoading(false);
-      }
-    })();
+    fetchRevenue();
   }, [unlocked]);
+
+  async function removeJob(jobId: string) {
+    if (!confirm('Remove this job from revenue? It will be deleted permanently.')) return;
+    try {
+      const res = await fetch('/api/jobs/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: jobId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Could not delete job.');
+        return;
+      }
+      setTxs((prev) => prev.filter((t) => t.id !== jobId));
+    } catch {
+      alert('Could not delete job.');
+    }
+  }
 
   function handlePin(e: React.FormEvent) {
     e.preventDefault();
@@ -135,10 +156,11 @@ export default function RevenuePage() {
         </div>
         <div className="hidden sm:grid sm:grid-cols-12 gap-4 p-4 bg-neutral-900/50 text-[10px] font-bold uppercase text-neutral-500 tracking-wider border-b border-neutral-800">
           <div className="col-span-2">Time</div>
-          <div className="col-span-4">Customer</div>
+          <div className="col-span-3">Customer</div>
           <div className="col-span-3">Service</div>
           <div className="col-span-1 text-center">Tech</div>
           <div className="col-span-2 text-right">Amount</div>
+          <div className="col-span-1 text-right">Remove</div>
         </div>
         <div className="divide-y divide-neutral-800">
           {loading ? (
@@ -154,12 +176,21 @@ export default function RevenuePage() {
             <div key={tx.id} className="p-4 sm:p-5 hover:bg-neutral-900/30">
               <div className="hidden sm:grid sm:grid-cols-12 gap-4 items-center">
                 <div className="col-span-2 text-neutral-500 text-sm">{tx.time}</div>
-                <div className="col-span-4 font-bold text-white uppercase text-sm">{tx.name}</div>
+                <div className="col-span-3 font-bold text-white uppercase text-sm">{tx.name}</div>
                 <div className="col-span-3 text-neutral-500 text-xs uppercase">{tx.service}</div>
                 <div className="col-span-1 text-center">
                   <span className="text-[10px] font-bold px-2 py-1 bg-neutral-800 rounded-sm">{tx.tech}</span>
                 </div>
                 <div className="col-span-2 text-right font-bold text-green-500">{tx.amount}</div>
+                <div className="col-span-1 text-right">
+                  <button
+                    type="button"
+                    onClick={() => removeJob(tx.id)}
+                    className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
               <div className="sm:hidden flex flex-col gap-2">
                 <div className="flex justify-between items-start">
@@ -170,6 +201,13 @@ export default function RevenuePage() {
                   <span className="font-bold text-green-500">{tx.amount}</span>
                 </div>
                 <p className="text-[10px] text-neutral-500 uppercase border-l-2 border-red-600 pl-2">{tx.service}</p>
+                <button
+                  type="button"
+                  onClick={() => removeJob(tx.id)}
+                  className="text-[10px] font-bold uppercase text-red-600 self-start"
+                >
+                  Remove from revenue
+                </button>
               </div>
             </div>
           )))}
