@@ -48,9 +48,9 @@ export default function AppShell({
   }
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen overflow-x-hidden max-w-[100vw]">
-      {/* Mobile: fixed logo header + user menu */}
-      <header className="md:hidden fixed top-0 left-0 right-0 h-16 sm:h-20 bg-black border-b border-neutral-900 flex items-center justify-between px-4 z-50 safe-area-inset-top">
+    <div className="flex flex-col md:flex-row min-h-screen md:min-h-screen h-[100dvh] md:h-auto overflow-x-hidden max-w-[100vw] overflow-y-hidden md:overflow-y-visible">
+      {/* Mobile: fixed logo header + user menu — stays at top, does not scroll */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-16 sm:h-20 bg-black border-b border-neutral-900 flex items-center justify-between px-4 z-50 safe-area-inset-top shrink-0">
         <div className="flex-1 min-w-0 flex justify-center">
           <img src="/logo.png" alt="BGR Logo" className="h-9 sm:h-10 w-auto object-contain" />
         </div>
@@ -64,12 +64,12 @@ export default function AppShell({
         <Sidebar />
       </div>
 
-      {/* Main content: below logo on mobile, beside sidebar on desktop */}
-      <main className="flex-1 w-full min-w-0 max-w-full overflow-x-hidden pt-16 sm:pt-20 md:pt-6 md:pl-72 p-4 md:p-6 pb-20 md:pb-6">
+      {/* Main content: only this area scrolls on mobile; header and bottom nav stay fixed */}
+      <main className="flex-1 w-full min-w-0 min-h-0 max-w-full overflow-x-hidden overflow-y-auto md:overflow-y-visible pt-16 sm:pt-20 md:pt-6 md:pl-72 p-4 md:p-6 pb-20 md:pb-6">
         {children}
       </main>
 
-      {/* Mobile bottom nav */}
+      {/* Mobile bottom nav — stays at bottom, does not scroll */}
       <MobileNav userRole={userRole} />
     </div>
   );
