@@ -52,7 +52,7 @@ export default function AppShell({
       {/* Mobile: fixed logo header + user menu — stays at top, does not scroll */}
       <header className="md:hidden fixed top-0 left-0 right-0 h-16 sm:h-20 bg-black border-b border-neutral-900 flex items-center justify-between px-4 z-50 safe-area-inset-top shrink-0">
         <div className="flex-1 min-w-0 flex justify-center">
-          <img src="/logo.png" alt="BGR Logo" className="h-12 sm:h-14 w-auto object-contain" />
+          <img src="/logo.png" alt="BGR Logo" className="h-20 sm:h-24 w-auto object-contain" />
         </div>
         <div className="absolute right-4 top-1/2 -translate-y-1/2">
           <UserMenu variant="mobile" />
