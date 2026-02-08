@@ -238,54 +238,58 @@ export default function TechInvoiceIdPage() {
       </header>
 
       {step === 'invoice' && (
-        <div className="p-4 space-y-3 pb-40 md:pb-8">
-          {ticket.map((item, index) => (
-            <div key={index} className="bg-neutral-950 border border-neutral-800 p-4 rounded-sm">
-              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
-                <div className="min-w-0 flex-1">
-                  <span className="text-[10px] font-bold text-red-600 uppercase block">{item.category}</span>
-                  <span className="font-bold text-white uppercase text-sm break-words">{item.part_name}</span>
+        <div className="p-4 pb-40 md:pb-8">
+          {/* Add items + taxable: sticky at top on mobile so tech doesn't scroll to add more */}
+          <div className="sticky top-20 z-10 -mx-4 px-4 py-2 bg-black/95 border-b border-neutral-800 md:static md:mx-0 md:px-0 md:py-0 md:border-0 md:bg-transparent md:space-y-3 md:mb-3">
+            <button
+              type="button"
+              onClick={() => setAdding(true)}
+              className="w-full bg-neutral-800 hover:bg-neutral-700 py-3 md:py-4 font-bold uppercase text-xs tracking-wider text-white rounded-sm active:scale-[0.98]"
+            >
+              + Add items
+            </button>
+            <label className="flex items-center gap-2 mt-2 md:mt-4 p-2 md:p-3 bg-neutral-950 border border-neutral-800 rounded-sm cursor-pointer">
+              <input
+                type="checkbox"
+                checked={taxable}
+                onChange={(e) => setTaxable(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-600 bg-black text-red-600 focus:ring-red-600 shrink-0"
+              />
+              <span className="text-xs md:text-sm font-semibold text-white uppercase">Taxable</span>
+            </label>
+          </div>
+          {/* Line items: compact on mobile to reduce scrolling */}
+          <div className="space-y-2 mt-3 md:space-y-3">
+            {ticket.map((item, index) => (
+              <div key={index} className="bg-neutral-950 border border-neutral-800 rounded-sm p-3 md:p-4">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="min-w-0 flex-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="text-[10px] font-bold text-red-600 uppercase hidden sm:inline">{item.category}</span>
+                    <span className="font-bold text-white uppercase text-xs md:text-sm truncate sm:break-words" title={item.part_name}>{item.part_name}</span>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] text-neutral-500 hidden sm:inline">${item.retail_price}</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={item.custom_price ?? ''}
+                      onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
+                      className="w-20 md:flex-1 md:min-w-0 bg-black border border-neutral-800 py-2 px-2 md:p-2 text-green-500 font-bold text-sm outline-none focus:border-red-600 rounded-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setTicket((t) => t.filter((_, i) => i !== index))}
+                      className="text-[10px] font-bold uppercase text-neutral-500 hover:text-red-600 p-1"
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setTicket((t) => t.filter((_, i) => i !== index))}
-                  className="text-[10px] font-bold uppercase text-neutral-500 hover:text-red-600 shrink-0 self-start sm:self-auto"
-                >
-                  Remove
-                </button>
+                <p className="text-[10px] text-neutral-500 mt-1 sm:hidden">Retail ${item.retail_price}</p>
               </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <label className="text-[10px] font-bold text-neutral-500 uppercase shrink-0">Sell price (you can change) $</label>
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={item.custom_price ?? ''}
-                    onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
-                    className="flex-1 min-w-0 bg-black border border-neutral-800 p-2.5 sm:p-2 text-green-500 font-bold outline-none focus:border-red-600 rounded-sm"
-                  />
-                  <span className="text-[10px] text-neutral-500 shrink-0">Master retail ${item.retail_price}</span>
-                </div>
-              </div>
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={() => setAdding(true)}
-            className="w-full bg-neutral-800 hover:bg-neutral-700 py-4 font-bold uppercase text-xs tracking-wider text-white rounded-sm active:scale-[0.98]"
-          >
-            + Add items
-          </button>
-          <label className="flex items-center gap-3 mt-4 p-3 bg-neutral-950 border border-neutral-800 rounded-sm cursor-pointer">
-            <input
-              type="checkbox"
-              checked={taxable}
-              onChange={(e) => setTaxable(e.target.checked)}
-              className="w-4 h-4 rounded border-neutral-600 bg-black text-red-600 focus:ring-red-600 shrink-0"
-            />
-            <span className="text-sm font-semibold text-white uppercase">Taxable (turn off for non-taxable jobs)</span>
-          </label>
+            ))}
+          </div>
         </div>
       )}
 
