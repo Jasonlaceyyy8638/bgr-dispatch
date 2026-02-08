@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 
 export default function PhotosPage() {
-  const [photos, setPhotos] = useState<{ id: string; job_id: string; photo_url: string; address: string | null; customer_name: string | null; created_at: string }[]>([]);
+  const [photos, setPhotos] = useState<{ id: string; job_id: string; photo_url: string; address: string | null; customer_name: string | null; invoice_number: string | null; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
@@ -19,10 +19,12 @@ export default function PhotosPage() {
     setLoading(false);
   }
 
-  const filtered = search.trim()
+  const searchLower = search.trim().toLowerCase();
+  const filtered = searchLower
     ? photos.filter(
         (p) =>
-          (p.customer_name?.toLowerCase().includes(search.toLowerCase().trim()) ?? false)
+          (p.customer_name?.toLowerCase().includes(searchLower) ?? false) ||
+          (p.invoice_number?.toLowerCase().includes(searchLower) ?? false)
       )
     : photos;
 
@@ -37,14 +39,14 @@ export default function PhotosPage() {
 
       <div className="mb-6">
         <label htmlFor="photo-search" className="sr-only">
-          Search by customer name
+          Search by customer name or invoice number
         </label>
         <input
           id="photo-search"
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search by customer name…"
+          placeholder="Search by customer name or invoice number…"
           className="w-full bg-black border border-neutral-800 p-3 sm:p-4 rounded-sm text-white placeholder:text-neutral-500 min-h-[44px] touch-manipulation"
         />
       </div>
@@ -72,10 +74,15 @@ export default function PhotosPage() {
               className="bg-neutral-950 border border-neutral-800 rounded-sm p-4 flex flex-wrap items-center gap-x-4 gap-y-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="text-white font-bold uppercase text-sm tracking-wider truncate">
+                <p className="text-white font-bold uppercase text-sm tracking-wider">
                   {p.customer_name ?? '—'}
                 </p>
-                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-0.5">Work performed at</p>
+                {p.invoice_number && (
+                  <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mt-0.5">
+                    Invoice {p.invoice_number}
+                  </p>
+                )}
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">Work performed at</p>
                 <p className="text-neutral-300 text-sm break-words">{p.address ?? '—'}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">

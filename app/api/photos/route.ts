@@ -34,7 +34,24 @@ export async function GET() {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    return NextResponse.json({ photos: photos ?? [] });
+    const list = photos ?? [];
+    if (list.length === 0) return NextResponse.json({ photos: [] });
+
+    const { data: jobs } = await supabase
+      .from('jobs')
+      .select('id, customer_name, street_address, address, city, state, zip_code, invoice_number')
+      .in('id', ids);
+    const jobMap = new Map((jobs ?? []).map((j: { id: number; customer_name?: string; street_address?: string; address?: string; city?: string; state?: string; zip_code?: string; invoice_number?: string }) => [j.id, j]));
+
+    const photosWithJob = list.map((p: { job_id: number; customer_name: string | null; address: string | null; [k: string]: unknown }) => {
+      const job = jobMap.get(p.job_id);
+      const customer_name = p.customer_name || job?.customer_name || null;
+      const address = p.address || (job ? [job.street_address || job.address, job.city, job.state, job.zip_code].filter(Boolean).join(', ') : null) || null;
+      const invoice_number = job?.invoice_number || null;
+      return { ...p, customer_name, address, invoice_number };
+    });
+
+    return NextResponse.json({ photos: photosWithJob });
   } catch (e) {
     console.error('Fetch photos error:', e);
     return NextResponse.json({ error: 'Failed to load photos' }, { status: 500 });
