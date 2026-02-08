@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { useRouter, useParams } from 'next/navigation';
 
@@ -14,6 +14,10 @@ export default function TechJobPage() {
   const [updatingStatus, setUpdatingStatus] = useState(false);
   const [photoUrl, setPhotoUrl] = useState('');
   const [savingPhoto, setSavingPhoto] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [showPasteUrl, setShowPasteUrl] = useState(false);
+  const takePicInputRef = useRef<HTMLInputElement>(null);
+  const chooseFileInputRef = useRef<HTMLInputElement>(null);
 
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
@@ -68,6 +72,48 @@ export default function TechJobPage() {
       setJob((j: any) => (j ? { ...j, job_photo_url: photoUrl || null } : j));
     } finally {
       setSavingPhoto(false);
+    }
+  }
+
+  async function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !id) return;
+    if (!file.type.startsWith('image/')) {
+      alert('Please choose an image file.');
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('jobId', id);
+      const res = await fetch('/api/jobs/upload-photo', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Upload failed. Create a "job-photos" bucket in Supabase Storage (public) if needed.');
+        return;
+      }
+      const url = data?.url;
+      if (url) {
+        const updateRes = await fetch('/api/jobs/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, job_photo_url: url }),
+        });
+        const updateData = await updateRes.json().catch(() => ({}));
+        if (!updateRes.ok) {
+          alert(updateData?.error || 'Update failed');
+          return;
+        }
+        setJob((j: any) => (j ? { ...j, job_photo_url: url } : j));
+        setPhotoUrl(url);
+      }
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = '';
     }
   }
 
@@ -220,29 +266,87 @@ export default function TechJobPage() {
         </div>
       </div>
 
-      {/* Optional job photo */}
-      <section className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm">
-        <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Job photo (optional)</p>
+      {/* Photos section — address + take/save pics (mobile & desktop) */}
+      <section className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm" aria-label="Job photos">
+        <h2 className="text-sm font-bold uppercase text-white tracking-wider mb-2">Photos</h2>
+        <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Work performed at</p>
+        <p className="text-white font-semibold text-sm mb-4 break-words">{fullAddress || 'No address'}</p>
         {job.job_photo_url ? (
-          <div className="mb-3">
+          <div className="mb-4">
             <img src={job.job_photo_url} alt="Job" className="max-w-full max-h-64 object-contain rounded-sm border border-neutral-700" />
+            <a
+              href={job.job_photo_url}
+              download={`job-${id}-${fullAddress.replace(/[^a-z0-9]/gi, '-').slice(0, 30)}.jpg`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-block mt-2 min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-green-600 text-green-500 rounded-sm hover:bg-green-600/10 touch-manipulation"
+            >
+              Save to device
+            </a>
           </div>
         ) : null}
-        <div className="flex gap-2 flex-wrap">
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => takePicInputRef.current?.click()}
+              disabled={!!uploadingPhoto}
+              className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-red-600 text-red-600 rounded-sm hover:bg-red-600/10 disabled:opacity-50 touch-manipulation"
+            >
+              Take pic
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseFileInputRef.current?.click()}
+              disabled={!!uploadingPhoto}
+              className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border border-neutral-600 text-neutral-300 rounded-sm hover:bg-neutral-800 disabled:opacity-50 touch-manipulation"
+            >
+              Choose file
+            </button>
+          </div>
           <input
-            type="url"
-            value={photoUrl}
-            onChange={(e) => setPhotoUrl(e.target.value)}
-            placeholder="Paste photo URL"
-            className="flex-1 min-w-0 bg-black border border-neutral-800 p-3 text-white text-sm rounded-sm min-h-[44px] touch-manipulation"
+            ref={takePicInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handlePhotoFile}
+            className="sr-only"
+            aria-hidden={true}
           />
+          <input
+            ref={chooseFileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handlePhotoFile}
+            className="sr-only"
+            aria-hidden={true}
+          />
+          {uploadingPhoto && <p className="text-[10px] font-bold text-neutral-500 uppercase">Uploading…</p>}
+          {showPasteUrl ? (
+            <div className="flex gap-2 flex-wrap">
+              <input
+                type="url"
+                value={photoUrl}
+                onChange={(e) => setPhotoUrl(e.target.value)}
+                placeholder="Paste photo URL"
+                className="flex-1 min-w-0 bg-black border border-neutral-800 p-3 text-white text-sm rounded-sm min-h-[44px] touch-manipulation"
+              />
+              <button
+                type="button"
+                onClick={savePhotoUrl}
+                disabled={savingPhoto}
+                className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-red-600 text-red-600 rounded-sm hover:bg-red-600/10 disabled:opacity-50 touch-manipulation"
+              >
+                {savingPhoto ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+          ) : null}
           <button
             type="button"
-            onClick={savePhotoUrl}
-            disabled={savingPhoto}
-            className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-red-600 text-red-600 rounded-sm hover:bg-red-600/10 disabled:opacity-50 touch-manipulation"
+            onClick={() => setShowPasteUrl((v) => !v)}
+            className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white touch-manipulation"
           >
-            {savingPhoto ? 'Saving…' : 'Save'}
+            {showPasteUrl ? 'Hide paste URL' : 'Or paste photo URL'}
           </button>
         </div>
       </section>

@@ -67,23 +67,52 @@ export default function AdminReportsPage() {
   async function buildPdfHeader(doc: any, companyName: string, companyPhone: string, logoDataUrl: string | null, pageW: number, headerH: number) {
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageW, headerH, 'F');
+    const left = 40;
+    let y = 20;
     if (logoDataUrl) {
       try {
-        doc.addImage(logoDataUrl, 'PNG', 40, 14, 140, 44);
+        doc.addImage(logoDataUrl, 'PNG', left, 12, 200, 56);
+        y = 76;
       } catch {
-        // skip logo if addImage fails
+        y = 28;
       }
+    } else {
+      y = 28;
     }
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(14);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text(companyName, logoDataUrl ? 200 : 40, 32);
+    doc.text(companyName.toUpperCase(), left, y);
+    y += 10;
     if (companyPhone) {
-      doc.setFontSize(9);
+      doc.setFontSize(10);
       doc.setFont('helvetica', 'normal');
-      doc.text(companyPhone, logoDataUrl ? 200 : 40, 44);
+      doc.text(companyPhone, left, y);
     }
-    doc.setTextColor(0, 0, 0);
+    doc.setDrawColor(220, 38, 38);
+    doc.setLineWidth(2);
+    doc.line(0, headerH, pageW, headerH);
+  }
+
+  function openOrDownloadPdf(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const isMobile = typeof window !== 'undefined' && (window.innerWidth < 768 || 'ontouchstart' in window);
+    if (isMobile) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+    } else {
+      window.open(url, '_blank');
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  function fillDarkBody(doc: any, pageW: number, headerH: number) {
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFillColor(23, 23, 23);
+    doc.rect(0, headerH, pageW, pageH - headerH, 'F');
+    doc.setTextColor(255, 255, 255);
   }
 
   async function downloadReportPdf() {
@@ -113,9 +142,10 @@ export default function AdminReportsPage() {
       const autoTable = (await import('jspdf-autotable')).default;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
       const pageW = doc.internal.pageSize.getWidth();
-      const headerH = 72;
+      const headerH = 96;
 
       await buildPdfHeader(doc, companyName, companyPhone, logoDataUrl, pageW, headerH);
+      fillDarkBody(doc, pageW, headerH);
 
       let y = headerH + 20;
       doc.setFontSize(9);
@@ -148,8 +178,10 @@ export default function AdminReportsPage() {
           head: [['Tech', 'Jobs', 'Revenue']],
           body: Object.entries(byTech).map(([tech, { count, revenue }]) => [tech, String(count), `$${revenue.toFixed(2)}`]),
           theme: 'grid',
-          headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+          bodyStyles: { fillColor: [35, 35, 35], textColor: [255, 255, 255] },
           margin: { left: 40 },
+          columnStyles: { 2: { halign: 'right', textColor: [220, 38, 38] } },
         });
         y = (doc as any).lastAutoTable.finalY + 20;
       }
@@ -164,16 +196,15 @@ export default function AdminReportsPage() {
           head: [['Customer', 'Tech', 'Amount']],
           body: txs.slice(0, 100).map((t) => [t.name || '—', t.tech || '—', `$${t.amountNum.toFixed(2)}`]),
           theme: 'grid',
-          headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255] },
+          bodyStyles: { fillColor: [35, 35, 35], textColor: [255, 255, 255] },
           margin: { left: 40 },
-          columnStyles: { 2: { halign: 'right' } },
+          columnStyles: { 2: { halign: 'right', textColor: [220, 38, 38] } },
         });
       }
 
       const blob = doc.output('blob');
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      openOrDownloadPdf(blob, `revenue-report-${from}-to-${to}.pdf`);
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'PDF download failed.');
     } finally {
@@ -217,8 +248,9 @@ export default function AdminReportsPage() {
       const autoTable = (await import('jspdf-autotable')).default;
       const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
       const pageW = doc.internal.pageSize.getWidth();
-      const headerH = 72;
+      const headerH = 96;
       await buildPdfHeader(doc, companyName, companyPhone, logoDataUrl, pageW, headerH);
+      fillDarkBody(doc, pageW, headerH);
 
       let y = headerH + 20;
       doc.setFontSize(9);
@@ -247,17 +279,15 @@ export default function AdminReportsPage() {
             j.paymentAmount != null && j.paymentAmount !== '' ? `$${Number(j.paymentAmount).toFixed(2)}` : j.price != null && j.price !== '' ? `$${Number(j.price).toFixed(2)}` : '—',
           ]),
           theme: 'grid',
-          headStyles: { fillColor: [40, 40, 40], textColor: 255, fontSize: 8 },
-          bodyStyles: { fontSize: 8 },
+          headStyles: { fillColor: [0, 0, 0], textColor: [255, 255, 255], fontSize: 8 },
+          bodyStyles: { fillColor: [35, 35, 35], textColor: [255, 255, 255], fontSize: 8 },
           margin: { left: 40 },
-          columnStyles: { 4: { halign: 'right' } },
+          columnStyles: { 4: { halign: 'right', textColor: [220, 38, 38] } },
         });
       }
 
       const blob = doc.output('blob');
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      openOrDownloadPdf(blob, `jobs-report-${from}-to-${to}.pdf`);
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'PDF download failed.');
     } finally {

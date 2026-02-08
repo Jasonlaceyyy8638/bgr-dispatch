@@ -42,6 +42,29 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
+
+    // When a job photo is set, save to job_photos so Photos page can list them with address/customer
+    if (updates.job_photo_url !== undefined) {
+      const url = updates.job_photo_url as string | null;
+      if (url) {
+        const { data: jobRow } = await supabase
+          .from('jobs')
+          .select('customer_name, street_address, address, city, state, zip_code')
+          .eq('id', id)
+          .single();
+        if (jobRow) {
+          const street = (jobRow as { street_address?: string; address?: string }).street_address || (jobRow as { address?: string }).address || '';
+          const fullAddress = [street, jobRow.city, jobRow.state, jobRow.zip_code].filter(Boolean).join(', ');
+          await supabase.from('job_photos').upsert(
+            { job_id: id, photo_url: url, address: fullAddress || null, customer_name: jobRow.customer_name || null },
+            { onConflict: 'job_id' }
+          );
+        }
+      } else {
+        await supabase.from('job_photos').delete().eq('job_id', id);
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error('Update job error:', e);

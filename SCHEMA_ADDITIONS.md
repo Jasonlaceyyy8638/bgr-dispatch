@@ -1,6 +1,13 @@
 # Schema additions for new features
 
-Run these in your Supabase SQL editor if you want full support for the new features.
+## Quick setup (one place to look)
+
+1. **SQL Editor** — Run the SQL below (Jobs columns, **job_photos** table for the Photos page, and optionally `app_settings`).
+2. **Dashboard → Storage** — Create the `job-photos` bucket (public, with insert policy). This is **not** done via SQL.
+
+---
+
+Run the following in your **Supabase SQL Editor** if you want full support for the new features.
 
 ## Jobs table
 
@@ -14,6 +21,24 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_photo_url text;
 
 (No change needed for `status` if it already accepts text; use values: `booked`, `en_route`, `on_site`, `Authorized`, `Closed`.)
 
+## Photos page (job_photos table)
+
+So the **Photos** section (sidebar + mobile) can list all job photos with address and search by customer name:
+
+```sql
+-- jobs.id is bigint, so job_id must match
+CREATE TABLE IF NOT EXISTS job_photos (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  job_id bigint NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
+  photo_url text NOT NULL,
+  address text,
+  customer_name text,
+  created_at timestamptz DEFAULT now()
+);
+```
+
+When a job gets a photo (Take pic, Choose file, or paste URL), the app upserts a row here. The Photos page reads from this table and supports search by customer name.
+
 ## Business settings (optional)
 
 To persist company name, phone, tax rate, card fee %, and review link from the Admin → Business settings page:
@@ -26,3 +51,13 @@ CREATE TABLE IF NOT EXISTS app_settings (
 ```
 
 If this table does not exist, the Business settings page still works: it reads defaults from env and save will fail until you create the table.
+
+## Job photos (optional)
+
+To let techs **take or choose a photo** on the job screen (instead of only pasting a URL):
+
+1. In **Supabase Dashboard** → **Storage**, create a new bucket named **`job-photos`**.
+2. Make the bucket **Public** (so the app can show uploaded images via public URL).
+3. Under **Policies** for `job-photos`, add a policy that allows **insert** (upload) for your app — e.g. allow `anon` to insert, or use a policy like: “Allow uploads for authenticated users” if you use Supabase Auth. For the simplest setup, use “New policy” → “For full customization” and add an **INSERT** policy with target “bucket = job-photos” and expression `true` (or restrict by role if you prefer).
+
+If the bucket does not exist or upload is denied, techs will see an error and can still use **“Or paste photo URL”** as a fallback.
