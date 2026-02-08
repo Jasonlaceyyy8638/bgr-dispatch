@@ -24,7 +24,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body className="bg-black text-white min-h-screen antialiased">
+      <body className="bg-black text-white min-h-screen antialiased overflow-x-hidden max-w-[100vw]">
         <AppShell>{children}</AppShell>
       </body>
     </html>
