@@ -15,7 +15,7 @@ export async function GET(req: Request) {
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let query = supabase.from('jobs').select('id, customer_name, phone_number, address, street_address, city, state, zip_code, job_description, service_type, status, price, payment_amount, payment_method, created_at, scheduled_date, start_time, assigned_tech_id, tech_users(name)');
+    let query = supabase.from('jobs').select('id, customer_name, phone_number, street_address, city, state, zip_code, job_description, service_type, status, price, payment_amount, payment_method, created_at, scheduled_date, start_time, assigned_tech_id, tech_users(name)');
 
     if (from) {
       const fromDate = new Date(from);
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
 
     const header = 'ID,Customer,Phone,Address,City,State,ZIP,Description,Status,Price,Payment Amount,Payment Method,Created,Scheduled,Start Time,Tech';
     const lines = list.map((j: any) => {
-      const addr = j.street_address || j.address || '';
+      const addr = j.street_address || '';
       const created = j.created_at ? new Date(j.created_at).toLocaleString() : '';
       const price = j.price != null ? Number(j.price) : '';
       const payAmt = j.payment_amount != null ? Number(j.payment_amount) : '';
