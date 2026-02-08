@@ -25,12 +25,24 @@ export default function TechInvoiceIdPage() {
 
   const TAX_RATE = 0.075;
 
+  const DRAFT_KEY = id ? `invoice_draft_${id}` : '';
+
   useEffect(() => {
     if (id) {
       loadJob();
       loadParts();
     }
   }, [id]);
+
+  // Save draft whenever ticket or taxable changes (only if job not yet authorized/closed)
+  useEffect(() => {
+    if (!DRAFT_KEY || !job || job.status === 'Authorized' || job.status === 'Closed') return;
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ ticket, taxable }));
+    } catch {
+      // ignore quota etc.
+    }
+  }, [DRAFT_KEY, job?.status, ticket, taxable]);
 
   useEffect(() => {
     if (searchParams.get('receipt') === '1' && job?.status === 'Closed') {
@@ -46,6 +58,19 @@ export default function TechInvoiceIdPage() {
       setJob(data);
       setContact((c) => ({ ...c, phone: data.phone_number || '' }));
       setTaxable(data.taxable !== false);
+      // Restore draft so parts aren't lost when navigating away (only if not yet authorized/closed)
+      if (data.status !== 'Authorized' && data.status !== 'Closed') {
+        try {
+          const raw = localStorage.getItem(`invoice_draft_${id}`);
+          if (raw) {
+            const d = JSON.parse(raw);
+            if (Array.isArray(d.ticket) && d.ticket.length > 0) setTicket(d.ticket);
+            if (typeof d.taxable === 'boolean') setTaxable(d.taxable);
+          }
+        } catch {
+          // ignore invalid draft
+        }
+      }
     }
   }
 
@@ -89,6 +114,11 @@ export default function TechInvoiceIdPage() {
     if (error) {
       alert('Error saving: ' + error.message);
       return;
+    }
+    try {
+      localStorage.removeItem(`invoice_draft_${id}`);
+    } catch {
+      // ignore
     }
     alert('Authorization saved. Complete the work, then use "Take payment" when done.');
     router.push(`/tech/job/${id}`);
