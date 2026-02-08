@@ -3,9 +3,24 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function DispatchPage() {
+  const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      if (user.role === 'tech') {
+        router.replace('/');
+        return;
+      }
+    } catch {
+      router.replace('/');
+      return;
+    }
+  }, [router]);
 
   useEffect(() => {
     async function load() {

@@ -46,6 +46,14 @@ export default function DashboardPage() {
   }
 
   const activeJobs = jobs.filter((j) => j.status !== 'Closed');
+  // Techs see only their current (next) job; sort by scheduled date/time and take the first
+  const sortedActive = [...activeJobs].sort((a, b) => {
+    const dA = a.scheduled_date || a.created_at || '';
+    const dB = b.scheduled_date || b.created_at || '';
+    if (dA !== dB) return String(dA).localeCompare(String(dB));
+    return String(a.start_time || '').localeCompare(String(b.start_time || ''));
+  });
+  const currentJob = sortedActive[0] ?? null;
   const closedToday = jobs.filter((j) => j.status === 'Closed' && isToday(j.created_at));
   const earnedToday = closedToday.reduce((sum, j) => sum + Number(j.payment_amount ?? j.price ?? 0), 0);
 
@@ -53,11 +61,11 @@ export default function DashboardPage() {
     <div className="max-w-4xl mx-auto pb-6">
       <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-neutral-950 border border-neutral-800 p-3 sm:p-4 rounded-sm text-center">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Active</p>
-          <p className="text-xl sm:text-2xl font-bold text-red-600">{activeJobs.length}</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Current</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600">{currentJob ? 1 : 0}</p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 p-3 sm:p-4 rounded-sm text-center">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Done</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Done today</p>
           <p className="text-xl sm:text-2xl font-bold text-green-600">{closedToday.length}</p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 p-3 sm:p-4 rounded-sm text-center">
@@ -67,7 +75,7 @@ export default function DashboardPage() {
       </div>
 
       <h2 className="text-lg sm:text-xl font-bold uppercase text-white mb-4 tracking-tight">
-        My <span className="text-red-600">Schedule</span>
+        Current <span className="text-red-600">Job</span>
       </h2>
 
       <div className="space-y-3 sm:space-y-4">
@@ -75,12 +83,15 @@ export default function DashboardPage() {
           <div className="p-8 sm:p-12 text-center bg-neutral-950 border border-neutral-800 border-dashed rounded-sm">
             <p className="text-neutral-500 font-semibold uppercase text-sm">Loading…</p>
           </div>
-        ) : activeJobs.length === 0 ? (
+        ) : !currentJob ? (
           <div className="p-8 sm:p-12 text-center bg-neutral-950 border border-neutral-800 border-dashed rounded-sm">
             <p className="text-neutral-500 font-semibold uppercase text-sm">No active jobs</p>
+            <p className="text-neutral-600 text-xs mt-2">When a job is assigned and you close it, the next one will appear here.</p>
           </div>
         ) : (
-          activeJobs.map((job) => (
+          (() => {
+            const job = currentJob;
+            return (
             <div
               key={job.id}
               className="bg-neutral-950 border-l-4 border-red-600 p-4 sm:p-6 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 rounded-r-sm"
@@ -109,7 +120,8 @@ export default function DashboardPage() {
                 Open job
               </button>
             </div>
-          ))
+          );
+          })()
         )}
       </div>
     </div>

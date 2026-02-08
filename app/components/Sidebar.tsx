@@ -40,7 +40,7 @@ export default function Sidebar() {
 
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
         {navLink('/', 'Dashboard')}
-        {navLink('/dispatch', 'Dispatch Center')}
+        {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch', 'Dispatch Center')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/customers', 'Customers')}
 
         {userRole === 'admin' && (

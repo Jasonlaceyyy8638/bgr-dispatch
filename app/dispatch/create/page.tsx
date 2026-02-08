@@ -36,6 +36,19 @@ export default function CreateJobPage() {
   });
 
   useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      if (user.role === 'tech') {
+        router.replace('/');
+        return;
+      }
+    } catch {
+      router.replace('/');
+      return;
+    }
+  }, [router]);
+
+  useEffect(() => {
     async function load() {
       const { data } = await supabase.from('tech_users').select('id, name').order('name');
       if (data) setTechs(data);

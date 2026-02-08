@@ -286,17 +286,8 @@ function CheckForm({
 }) {
   const [checkNumber, setCheckNumber] = useState('');
   const [checkAmount, setCheckAmount] = useState('');
-  const [checkPhoto, setCheckPhoto] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  function onFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setCheckPhoto(reader.result as string);
-    reader.readAsDataURL(file);
-  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -310,38 +301,20 @@ function CheckForm({
       setError('Enter the check number.');
       return;
     }
-    if (!checkPhoto) {
-      setError('Take a photo of the check (required).');
-      return;
-    }
     setSaving(true);
+    // Save check amount and number only; do not close job yet. Tech will send receipt, then take photo and close on invoice page.
     const { error: err } = await supabase
       .from('jobs')
       .update({
-        status: 'Closed',
         payment_method: 'check',
         payment_amount: amount,
         check_number: checkNumber.trim(),
-        check_photo_url: checkPhoto,
       })
       .eq('id', jobId);
     if (err) {
       setSaving(false);
       setError(err.message);
       return;
-    }
-    const phone = (job?.phone_number || '').toString().trim();
-    const customerName = (job?.customer_name || '').toString().trim();
-    if (phone && customerName) {
-      try {
-        const r = await fetch('/api/customers/upsert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: customerName, phone }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok && j?.error) console.warn('Customer save:', j.error);
-      } catch (_) {}
     }
     setSaving(false);
     onDone();
@@ -356,15 +329,6 @@ function CheckForm({
           <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
         </div>
         <form onSubmit={submit} className="space-y-4">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Photo of check (required)</p>
-          <label className="block border border-neutral-700 border-dashed p-6 rounded-sm text-center cursor-pointer">
-            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={onFile} />
-            {checkPhoto ? (
-              <img src={checkPhoto} alt="Check" className="max-h-40 mx-auto rounded object-contain" />
-            ) : (
-              <span className="text-neutral-500 font-bold uppercase text-sm">Tap to take photo</span>
-            )}
-          </label>
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Check number (required)</p>
           <input
             type="text"
@@ -385,9 +349,10 @@ function CheckForm({
             value={checkAmount}
             onChange={(e) => setCheckAmount(e.target.value)}
           />
+          <p className="text-neutral-500 text-xs">Next: send receipt to customer, then take a photo of the check to close the job.</p>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={saving} className="w-full bg-green-600 hover:bg-green-500 py-4 font-bold uppercase text-sm text-white rounded-sm disabled:opacity-50">
-            {saving ? 'Saving…' : 'Record check & close job'}
+            {saving ? 'Saving…' : 'Continue → Send receipt'}
           </button>
         </form>
       </div>

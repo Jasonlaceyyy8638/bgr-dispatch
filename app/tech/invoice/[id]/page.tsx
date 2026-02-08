@@ -22,6 +22,8 @@ export default function TechInvoiceIdPage() {
   const [contact, setContact] = useState({ phone: '', email: '' });
   const [receiptTotal, setReceiptTotal] = useState<number | null>(null);
   const [taxable, setTaxable] = useState(true);
+  const [checkPhoto, setCheckPhoto] = useState<string | null>(null);
+  const [closingWithCheck, setClosingWithCheck] = useState(false);
 
   const TAX_RATE = 0.075;
 
@@ -34,9 +36,9 @@ export default function TechInvoiceIdPage() {
     }
   }, [id]);
 
-  // Save draft whenever ticket or taxable changes (only if job not yet authorized/closed)
+  // Save draft whenever ticket or taxable changes (keep saving after authorize so they can edit and re-sign; only stop when job is Closed)
   useEffect(() => {
-    if (!DRAFT_KEY || !job || job.status === 'Authorized' || job.status === 'Closed') return;
+    if (!DRAFT_KEY || !job || job.status === 'Closed') return;
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify({ ticket, taxable }));
     } catch {
@@ -45,12 +47,15 @@ export default function TechInvoiceIdPage() {
   }, [DRAFT_KEY, job?.status, ticket, taxable]);
 
   useEffect(() => {
-    if (searchParams.get('receipt') === '1' && job?.status === 'Closed') {
+    const isReceipt = searchParams.get('receipt') === '1';
+    const isClosed = job?.status === 'Closed';
+    const isCheckPending = job?.payment_method === 'check' && Number(job?.payment_amount) > 0 && !job?.check_photo_url;
+    if (isReceipt && (isClosed || isCheckPending)) {
       setStep('receipt');
-      setReceiptTotal(Number(job.price) || 0);
+      setReceiptTotal(Number(job.payment_amount ?? job.price) || 0);
       setContact((c) => ({ ...c, phone: job.phone_number || '' }));
     }
-  }, [searchParams, job?.status, job?.price, job?.phone_number]);
+  }, [searchParams, job?.status, job?.payment_method, job?.payment_amount, job?.price, job?.phone_number, job?.check_photo_url]);
 
   async function loadJob() {
     const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
@@ -58,8 +63,14 @@ export default function TechInvoiceIdPage() {
       setJob(data);
       setContact((c) => ({ ...c, phone: data.phone_number || '' }));
       setTaxable(data.taxable !== false);
-      // Restore draft so parts aren't lost when navigating away (only if not yet authorized/closed)
-      if (data.status !== 'Authorized' && data.status !== 'Closed') {
+      // Restore draft so parts persist when navigating away; also restore after authorize so they can add parts and get a new signature (clear draft only when job is Closed)
+      if (data.status === 'Closed') {
+        try {
+          localStorage.removeItem(`invoice_draft_${id}`);
+        } catch {
+          // ignore
+        }
+      } else {
         try {
           const raw = localStorage.getItem(`invoice_draft_${id}`);
           if (raw) {
@@ -115,13 +126,36 @@ export default function TechInvoiceIdPage() {
       alert('Error saving: ' + error.message);
       return;
     }
-    try {
-      localStorage.removeItem(`invoice_draft_${id}`);
-    } catch {
-      // ignore
-    }
-    alert('Authorization saved. Complete the work, then use "Take payment" when done.');
+    // Keep draft in localStorage so they can come back, add parts, and get a new signature if needed; draft is cleared when job is Closed
+    alert('Authorization saved. You can come back to add or change parts and get a new signature if needed. Use "Take payment" when the job is done.');
     router.push(`/tech/job/${id}`);
+  }
+
+  async function closeJobWithCheckPhoto() {
+    if (!checkPhoto || !id) return;
+    setClosingWithCheck(true);
+    const { error } = await supabase
+      .from('jobs')
+      .update({ status: 'Closed', check_photo_url: checkPhoto })
+      .eq('id', id);
+    if (error) {
+      alert('Error closing job: ' + error.message);
+      setClosingWithCheck(false);
+      return;
+    }
+    const phone = (job?.phone_number || '').toString().trim();
+    const customerName = (job?.customer_name || '').toString().trim();
+    if (phone && customerName) {
+      try {
+        await fetch('/api/customers/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: customerName, phone }),
+        });
+      } catch (_) {}
+    }
+    setClosingWithCheck(false);
+    router.push('/');
   }
 
   async function sendReceipt(type: 'text' | 'email') {
@@ -382,10 +416,12 @@ export default function TechInvoiceIdPage() {
       )}
 
       {step === 'receipt' && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4">
-          <div className="bg-neutral-950 border border-neutral-800 w-full max-w-sm rounded-sm overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-neutral-950 border border-neutral-800 w-full max-w-sm rounded-sm overflow-hidden my-auto">
             <div className="p-4 border-b border-neutral-800">
-              <h2 className="font-bold uppercase text-green-500">Payment received — send receipt</h2>
+              <h2 className="font-bold uppercase text-green-500">
+                {job?.payment_method === 'check' && !job?.check_photo_url ? 'Send receipt, then photo check' : 'Payment received — send receipt'}
+              </h2>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-[10px] font-bold text-neutral-500 uppercase text-center">
@@ -422,9 +458,52 @@ export default function TechInvoiceIdPage() {
               >
                 Open warranty page (share or print)
               </a>
-              <button type="button" onClick={() => router.push('/')} className="w-full text-[10px] font-bold uppercase text-neutral-500 hover:text-white">
-                Close without receipt
-              </button>
+
+              {/* Check: take photo then close job */}
+              {job?.payment_method === 'check' && !job?.check_photo_url && (
+                <>
+                  <div className="border-t border-neutral-800 pt-4 mt-4">
+                    <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Take photo of check to close job</p>
+                    <label className="block border border-neutral-700 border-dashed p-4 rounded-sm text-center cursor-pointer">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setCheckPhoto(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }}
+                      />
+                      {checkPhoto ? (
+                        <img src={checkPhoto} alt="Check" className="max-h-32 mx-auto rounded object-contain" />
+                      ) : (
+                        <span className="text-neutral-500 font-bold uppercase text-sm">Tap to take photo</span>
+                      )}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={closeJobWithCheckPhoto}
+                      disabled={!checkPhoto || closingWithCheck}
+                      className="w-full mt-3 py-3 bg-green-600 hover:bg-green-500 disabled:opacity-50 font-bold uppercase text-xs text-white rounded-sm active:scale-[0.98]"
+                    >
+                      {closingWithCheck ? 'Closing…' : 'Close job with photo'}
+                    </button>
+                  </div>
+                  <button type="button" onClick={() => router.push(`/tech/job/${id}`)} className="w-full text-[10px] font-bold uppercase text-neutral-500 hover:text-white">
+                    Back to job (close later)
+                  </button>
+                </>
+              )}
+
+              {!(job?.payment_method === 'check' && !job?.check_photo_url) && (
+                <button type="button" onClick={() => router.push('/')} className="w-full text-[10px] font-bold uppercase text-neutral-500 hover:text-white">
+                  Close without receipt
+                </button>
+              )}
             </div>
           </div>
         </div>
