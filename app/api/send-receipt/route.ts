@@ -149,7 +149,9 @@ export async function POST(req: Request) {
 
     const origin = body.origin && typeof body.origin === 'string' ? body.origin.replace(/\/$/, '') : '';
     const jobIdForLink = body.jobId && typeof body.jobId === 'string' && body.jobId.trim() ? body.jobId.trim() : '';
-    const warrantyLink = origin && jobIdForLink ? `${origin}/invoice/${jobIdForLink}/warranty` : '';
+    const fallbackBase = (process.env.NEXT_PUBLIC_APP_URL || process.env.URL || '').replace(/\/$/, '');
+    const baseForWarranty = (origin && !origin.includes('localhost')) ? origin : fallbackBase || origin;
+    const warrantyLink = jobIdForLink && baseForWarranty ? `${baseForWarranty}/invoice/${jobIdForLink}/warranty` : '';
     const message = warrantyLink
       ? `BGR SUITE: Thanks for choosing ${business}!
 
@@ -196,8 +198,7 @@ Thank you!`;
         );
       }
       const fromEmail = (process.env.RESEND_FROM_EMAIL || 'Buckeye Garage Door Repair <onboarding@resend.dev>').trim();
-      const baseUrl = (typeof origin === 'string' && origin && !origin.includes('localhost')) ? origin.replace(/\/$/, '') : '';
-      const warrantyUrl = baseUrl && jobIdForLink ? `${baseUrl}/invoice/${jobIdForLink}/warranty` : undefined;
+      const warrantyUrl = jobIdForLink && baseForWarranty ? `${baseForWarranty}/invoice/${jobIdForLink}/warranty` : undefined;
       const html = buildInvoiceHtml({
         total: String(total),
         invoiceNumber,
@@ -206,7 +207,7 @@ Thank you!`;
         phone,
         reviewLink: review,
         useCidLogo: !!logoAttachment,
-        baseUrl,
+        baseUrl: baseForWarranty || '',
         warrantyUrl,
       });
       const attachments = logoAttachment

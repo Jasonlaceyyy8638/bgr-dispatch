@@ -16,6 +16,7 @@ export default function TechJobPage() {
   const [savingPhoto, setSavingPhoto] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [showPasteUrl, setShowPasteUrl] = useState(false);
+  const [jobPhotos, setJobPhotos] = useState<{ id: string; photo_url: string }[]>([]);
   const takePicInputRef = useRef<HTMLInputElement>(null);
   const chooseFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -25,12 +26,43 @@ export default function TechJobPage() {
     if (id) load();
   }, [id]);
 
+  const STORAGE_KEY = 'job-photos';
+
+  function getStoredPhotos(): { id: string; photo_url: string }[] {
+    if (typeof window === 'undefined' || !id) return [];
+    try {
+      const raw = localStorage.getItem(`${STORAGE_KEY}-${id}`);
+      if (!raw) return [];
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function setStoredPhotos(photos: { id: string; photo_url: string }[]) {
+    if (typeof window === 'undefined' || !id) return;
+    try {
+      localStorage.setItem(`${STORAGE_KEY}-${id}`, JSON.stringify(photos));
+    } catch {}
+  }
+
   async function load() {
     const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
     if (data) {
       setJob(data);
       setTechNotes(data.tech_notes ?? '');
       setPhotoUrl(data.job_photo_url ?? '');
+    }
+    const res = await fetch(`/api/jobs/${id}/photos`);
+    const json = await res.json().catch(() => ({}));
+    const apiPhotos = Array.isArray(json.photos) ? json.photos : [];
+    if (apiPhotos.length > 0) {
+      setJobPhotos(apiPhotos);
+      setStoredPhotos(apiPhotos);
+    } else {
+      const stored = getStoredPhotos();
+      setJobPhotos(stored.length > 0 ? stored : []);
     }
     setLoading(false);
   }
@@ -56,60 +88,70 @@ export default function TechJobPage() {
   }
 
   async function savePhotoUrl() {
-    if (!id) return;
+    if (!id || !photoUrl?.trim()) return;
     setSavingPhoto(true);
     try {
       const res = await fetch('/api/jobs/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, job_photo_url: photoUrl || null }),
+        body: JSON.stringify({ id, job_photo_url: photoUrl.trim() }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(data?.error || 'Update failed');
         return;
       }
-      setJob((j: any) => (j ? { ...j, job_photo_url: photoUrl || null } : j));
+      setPhotoUrl('');
+      const resRefresh = await fetch(`/api/jobs/${id}/photos`);
+      const jsonRefresh = await resRefresh.json().catch(() => ({}));
+      const list = Array.isArray(jsonRefresh.photos) ? jsonRefresh.photos : [];
+      setJobPhotos(list);
+      setStoredPhotos(list);
     } finally {
       setSavingPhoto(false);
     }
   }
 
   async function handlePhotoFile(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file || !id) return;
-    if (!file.type.startsWith('image/')) {
-      alert('Please choose an image file.');
+    const files = e.target.files;
+    if (!files?.length || !id) return;
+    const toUpload = Array.from(files).filter((f) => f.type.startsWith('image/'));
+    if (toUpload.length === 0) {
+      alert('Please choose image file(s).');
       return;
     }
     setUploadingPhoto(true);
     try {
-      const formData = new FormData();
-      formData.set('file', file);
-      formData.set('jobId', id);
-      const res = await fetch('/api/jobs/upload-photo', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data?.error || 'Upload failed. Create a "job-photos" bucket in Supabase Storage (public) if needed.');
-        return;
-      }
-      const url = data?.url;
-      if (url) {
-        const updateRes = await fetch('/api/jobs/update', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id, job_photo_url: url }),
-        });
-        const updateData = await updateRes.json().catch(() => ({}));
-        if (!updateRes.ok) {
-          alert(updateData?.error || 'Update failed');
-          return;
+      const added: { id: string; photo_url: string }[] = [];
+      for (const file of toUpload) {
+        const formData = new FormData();
+        formData.set('file', file);
+        formData.set('jobId', id);
+        const res = await fetch('/api/jobs/upload-photo', { method: 'POST', body: formData });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data?.error || 'Upload failed.');
+          break;
         }
-        setJob((j: any) => (j ? { ...j, job_photo_url: url } : j));
-        setPhotoUrl(url);
+        if (data.photo) {
+          added.push(data.photo);
+        } else if (data.url) {
+          added.push({ id: `upload-${Date.now()}-${Math.random().toString(36).slice(2)}`, photo_url: data.url });
+        }
+      }
+      if (added.length > 0) {
+        setJobPhotos((prev) => {
+          const next = [...added, ...prev];
+          setStoredPhotos(next);
+          return next;
+        });
+        if (job && added[0]) setJob((j: any) => (j ? { ...j, job_photo_url: added[0].photo_url } : j));
+      }
+      const resRefresh = await fetch(`/api/jobs/${id}/photos`);
+      const jsonRefresh = await resRefresh.json().catch(() => ({}));
+      if (Array.isArray(jsonRefresh.photos) && jsonRefresh.photos.length > 0) {
+        setJobPhotos(jsonRefresh.photos);
+        setStoredPhotos(jsonRefresh.photos);
       }
     } finally {
       setUploadingPhoto(false);
@@ -271,18 +313,26 @@ export default function TechJobPage() {
         <h2 className="text-sm font-bold uppercase text-white tracking-wider mb-2">Photos</h2>
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Work performed at</p>
         <p className="text-white font-semibold text-sm mb-4 break-words">{fullAddress || 'No address'}</p>
-        {job.job_photo_url ? (
+        <p className="text-neutral-400 text-sm mb-4">
+          Capture a clear before and after photo of the work for customer records. Keep it professional and well-lit.
+        </p>
+        {jobPhotos.length > 0 ? (
           <div className="mb-4">
-            <img src={job.job_photo_url} alt="Job" className="max-w-full max-h-64 object-contain rounded-sm border border-neutral-700" />
-            <a
-              href={job.job_photo_url}
-              download={`job-${id}-${fullAddress.replace(/[^a-z0-9]/gi, '-').slice(0, 30)}.jpg`}
-              target="_blank"
-              rel="noreferrer"
-              className="inline-block mt-2 min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-green-600 text-green-500 rounded-sm hover:bg-green-600/10 touch-manipulation"
-            >
-              Save to device
-            </a>
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">View job photo(s)</p>
+            <ul className="space-y-1">
+              {jobPhotos.map((p, i) => (
+                <li key={p.id}>
+                  <a
+                    href={p.photo_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-red-600 hover:text-red-500"
+                  >
+                    Photo {jobPhotos.length > 1 ? `${i + 1} →` : '→'}
+                  </a>
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
         <div className="space-y-3">
@@ -317,6 +367,7 @@ export default function TechJobPage() {
             ref={chooseFileInputRef}
             type="file"
             accept="image/*"
+            multiple
             onChange={handlePhotoFile}
             className="sr-only"
             aria-hidden={true}

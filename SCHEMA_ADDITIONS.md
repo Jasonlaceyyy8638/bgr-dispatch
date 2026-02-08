@@ -26,10 +26,10 @@ ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_photo_url text;
 So the **Photos** section (sidebar + mobile) can list all job photos with address and search by customer name:
 
 ```sql
--- jobs.id is bigint, so job_id must match
+-- jobs.id is bigint, so job_id must match; multiple photos per job (no UNIQUE on job_id)
 CREATE TABLE IF NOT EXISTS job_photos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  job_id bigint NOT NULL UNIQUE REFERENCES jobs(id) ON DELETE CASCADE,
+  job_id bigint NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
   photo_url text NOT NULL,
   address text,
   customer_name text,
@@ -37,7 +37,29 @@ CREATE TABLE IF NOT EXISTS job_photos (
 );
 ```
 
-When a job gets a photo (Take pic, Choose file, or paste URL), the app upserts a row here. The Photos page reads from this table and supports search by customer name.
+If you already created the table with `UNIQUE(job_id)`, allow multiple photos per job:
+
+```sql
+ALTER TABLE job_photos DROP CONSTRAINT IF EXISTS job_photos_job_id_key;
+```
+
+**Required so photos actually save and show on the Photos page** — allow the app to read/write `job_photos` (run in SQL Editor):
+
+```sql
+ALTER TABLE job_photos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon to read job_photos" ON job_photos;
+CREATE POLICY "Allow anon to read job_photos"
+  ON job_photos FOR SELECT TO anon USING (true);
+
+DROP POLICY IF EXISTS "Allow anon to insert job_photos" ON job_photos;
+CREATE POLICY "Allow anon to insert job_photos"
+  ON job_photos FOR INSERT TO anon WITH CHECK (true);
+```
+
+This lets the app (using the anon key) save and load photos even without the service role key.
+
+When a job gets a photo (Take pic, Choose file, or paste URL), the app inserts a row here. The Photos page reads from this table and supports search by customer name.
 
 ## Business settings (optional)
 

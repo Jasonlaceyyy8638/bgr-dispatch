@@ -13,10 +13,12 @@ export async function POST(req: Request) {
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (!supabaseUrl || !supabaseKey) {
       return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
     }
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAdmin = serviceKey ? createClient(supabaseUrl, serviceKey) : supabase;
 
     const updates: Record<string, unknown> = {};
     if (body.status !== undefined) {
@@ -43,7 +45,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
 
-    // When a job photo is set, save to job_photos so Photos page can list them with address/customer
+    // When a job photo is added (e.g. paste URL), insert into job_photos (multiple per job)
     if (updates.job_photo_url !== undefined) {
       const url = updates.job_photo_url as string | null;
       if (url) {
@@ -55,13 +57,32 @@ export async function POST(req: Request) {
         if (jobRow) {
           const street = (jobRow as { street_address?: string; address?: string }).street_address || (jobRow as { address?: string }).address || '';
           const fullAddress = [street, jobRow.city, jobRow.state, jobRow.zip_code].filter(Boolean).join(', ');
-          await supabase.from('job_photos').upsert(
-            { job_id: id, photo_url: url, address: fullAddress || null, customer_name: jobRow.customer_name || null },
-            { onConflict: 'job_id' }
-          );
+          await supabaseAdmin.from('job_photos').insert({
+            job_id: Number(id),
+            photo_url: url,
+            address: fullAddress || null,
+            customer_name: jobRow.customer_name || null,
+          });
         }
-      } else {
-        await supabase.from('job_photos').delete().eq('job_id', id);
+      }
+    }
+
+    // When job is closed, ensure current photo is in job_photos so it shows on the Photos sidebar page
+    if (updates.status === 'Closed') {
+      const { data: closedJob } = await supabase
+        .from('jobs')
+        .select('job_photo_url, customer_name, street_address, address, city, state, zip_code')
+        .eq('id', id)
+        .single();
+      if (closedJob?.job_photo_url) {
+        const street = (closedJob as { street_address?: string; address?: string }).street_address || (closedJob as { address?: string }).address || '';
+        const fullAddress = [street, closedJob.city, closedJob.state, closedJob.zip_code].filter(Boolean).join(', ');
+        await supabaseAdmin.from('job_photos').insert({
+          job_id: Number(id),
+          photo_url: closedJob.job_photo_url,
+          address: fullAddress || null,
+          customer_name: closedJob.customer_name || null,
+        });
       }
     }
 

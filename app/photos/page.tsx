@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import Link from 'next/link';
 
 export default function PhotosPage() {
@@ -14,11 +13,9 @@ export default function PhotosPage() {
   }, []);
 
   async function load() {
-    const { data } = await supabase
-      .from('job_photos')
-      .select('id, job_id, photo_url, address, customer_name, created_at')
-      .order('created_at', { ascending: false });
-    setPhotos(data ?? []);
+    const res = await fetch('/api/photos');
+    const json = await res.json().catch(() => ({}));
+    setPhotos(Array.isArray(json.photos) ? json.photos : []);
     setLoading(false);
   }
 
@@ -35,7 +32,7 @@ export default function PhotosPage() {
         Photos
       </h1>
       <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-4">
-        Job photos with address — search by customer name
+        Closed jobs only — search by customer name (e.g. when a customer calls)
       </p>
 
       <div className="mb-6">
@@ -55,39 +52,45 @@ export default function PhotosPage() {
       {loading ? (
         <p className="text-white font-bold uppercase animate-pulse">Loading…</p>
       ) : filtered.length === 0 ? (
-        <div className="bg-neutral-950 border border-neutral-800 p-6 sm:p-8 rounded-sm text-center">
+        <div className="bg-neutral-950 border border-neutral-800 p-6 sm:p-8 rounded-sm text-center space-y-4">
           <p className="text-neutral-500 font-semibold uppercase tracking-wider">
-            {search.trim() ? 'No photos match that customer name.' : 'No job photos yet.'}
+            {search.trim() ? 'No photos match that customer name.' : 'No closed job photos yet.'}
           </p>
-          <p className="text-[10px] text-neutral-600 mt-2">
-            Add a photo on a job (Take pic or Choose file) to see it here.
+          <p className="text-[10px] text-neutral-600">
+            Add a photo on a job, then close the job. Photos appear here after the job is closed.
           </p>
+          <div className="text-left max-w-md mx-auto mt-6 p-4 bg-neutral-900 rounded-sm border border-neutral-800">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Photos not saving?</p>
+            <p className="text-[10px] text-neutral-500">Run the job_photos SQL + RLS policies in <code className="text-neutral-400">SCHEMA_ADDITIONS.md</code>, or add <code className="text-neutral-400">SUPABASE_SERVICE_ROLE_KEY</code> to .env.local and restart the dev server.</p>
+          </div>
         </div>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        <ul className="space-y-3">
           {filtered.map((p) => (
             <li
               key={p.id}
-              className="bg-neutral-950 border border-neutral-800 rounded-sm overflow-hidden"
+              className="bg-neutral-950 border border-neutral-800 rounded-sm p-4 flex flex-wrap items-center gap-x-4 gap-y-2"
             >
-              <Link href={p.photo_url} target="_blank" rel="noreferrer" className="block">
-                <img
-                  src={p.photo_url}
-                  alt={p.customer_name ?? 'Job photo'}
-                  className="w-full aspect-video object-cover border-b border-neutral-800"
-                />
-              </Link>
-              <div className="p-3 sm:p-4">
-                <p className="text-white font-bold uppercase text-sm tracking-wider mb-1">
+              <div className="min-w-0 flex-1">
+                <p className="text-white font-bold uppercase text-sm tracking-wider truncate">
                   {p.customer_name ?? '—'}
                 </p>
-                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-0.5">
-                  Work performed at
-                </p>
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-0.5">Work performed at</p>
                 <p className="text-neutral-300 text-sm break-words">{p.address ?? '—'}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <Link
+                  href={p.photo_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm font-bold uppercase tracking-wider text-red-600 hover:text-red-500"
+                >
+                  View photo →
+                </Link>
+                <span className="text-neutral-600">·</span>
                 <Link
                   href={`/tech/job/${p.job_id}`}
-                  className="inline-block mt-2 text-[10px] font-bold uppercase text-red-600 hover:text-red-500 tracking-wider"
+                  className="text-sm font-bold uppercase tracking-wider text-neutral-400 hover:text-white"
                 >
                   View job →
                 </Link>
