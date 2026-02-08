@@ -313,30 +313,43 @@ export default function CustomersPage() {
                     const label = (job.service_type || job.job_description || 'Job').slice(0, 60);
                     const date = job.created_at;
                     return (
-                      <li key={job.id}>
-                        <Link
-                          href={`/tech/invoice/${job.id}?view=1`}
-                          className="block bg-neutral-900 border border-neutral-800 p-3 rounded-sm hover:border-red-600/50 transition-colors"
-                        >
-                          <div className="flex justify-between items-start gap-2">
-                            <div className="min-w-0 flex-1">
-                              <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">
-                                Invoice # {job.invoice_number || `INV-${String(job.id).padStart(5, '0')}`}
+                      <li key={job.id} className="bg-neutral-900 border border-neutral-800 p-3 rounded-sm">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider">
+                              Invoice # {job.invoice_number || `INV-${String(job.id).padStart(5, '0')}`}
+                            </p>
+                            <p className="text-white font-semibold text-sm uppercase truncate">{label}</p>
+                            {date && (
+                              <p className="text-[10px] text-neutral-500 uppercase mt-0.5">
+                                {new Date(date).toLocaleDateString()} · {job.status}
                               </p>
-                              <p className="text-white font-semibold text-sm uppercase truncate">{label}</p>
-                              {date && (
-                                <p className="text-[10px] text-neutral-500 uppercase mt-0.5">
-                                  {new Date(date).toLocaleDateString()} · {job.status}
-                                </p>
-                              )}
-                              {job.tech_notes && (
-                                <p className="text-[10px] text-neutral-400 mt-1 line-clamp-2">{job.tech_notes}</p>
-                              )}
-                            </div>
-                            <span className="text-green-500 font-bold text-sm shrink-0">${amt.toFixed(2)}</span>
+                            )}
+                            {job.tech_notes && (
+                              <p className="text-[10px] text-neutral-400 mt-1 line-clamp-2">{job.tech_notes}</p>
+                            )}
                           </div>
-                          <p className="text-[10px] text-red-600 uppercase mt-1.5">View invoice →</p>
-                        </Link>
+                          <span className="text-green-500 font-bold text-sm shrink-0">${amt.toFixed(2)}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-3 mt-3 pt-2 border-t border-neutral-800">
+                          <Link
+                            href={`/tech/invoice/${job.id}?view=1`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                          >
+                            Invoice (open page)
+                          </Link>
+                          <Link
+                            href={`/invoice/${job.id}/warranty`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                          >
+                            Warranty (open page)
+                          </Link>
+                        </div>
+                        <p className="text-[10px] text-neutral-500 mt-1">Opens in new tab — use browser Print to save as PDF.</p>
                       </li>
                     );
                   })}

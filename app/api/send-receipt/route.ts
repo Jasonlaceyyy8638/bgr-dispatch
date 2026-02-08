@@ -103,8 +103,9 @@ function buildInvoiceHtml(params: {
           <tr>
             <td style="padding:20px 24px; border-top:1px solid ${border}; background-color:#000000;" bgcolor="#000000">
               ${warrantyUrl ? `<p style="margin:0 0 10px 0; font-size:12px; color:${muted}; line-height:1.5;" bgcolor="#000000">Your warranty &amp; service agreement (90-day labor, 10-year parts) is available at the link below. Save or print it for your records.</p><p style="margin:0 0 14px 0;" bgcolor="#000000"><a href="${warrantyUrl}" style="color:${red}; font-size:12px; font-weight:bold; text-decoration:underline;">View warranty &amp; invoice details</a></p>` : ''}
-              <p style="margin:0 0 14px 0; font-size:13px; color:${muted}; line-height:1.5;" bgcolor="#000000">We'd really appreciate it if you could take a moment to leave us an honest review of your service today.</p>
-              <a href="${reviewLink}" style="display:inline-block; background-color:${red}; color:#fff !important; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.08em; text-decoration:none; padding:12px 20px; border-radius:2px;">Leave a review</a>
+              <p style="margin:0 0 8px 0; font-size:14px; color:#fff; line-height:1.5; font-weight:600;" bgcolor="#000000">Your review helps other families find great service—and helps us keep doing our best.</p>
+              <p style="margin:0 0 16px 0; font-size:13px; color:${muted}; line-height:1.5;" bgcolor="#000000">Tap the button below to leave a quick Google review. It only takes a minute and means a lot to us.</p>
+              <a href="${reviewLink}" style="display:inline-block; background-color:${red}; color:#fff !important; font-size:13px; font-weight:bold; text-transform:uppercase; letter-spacing:0.06em; text-decoration:none; padding:16px 28px; border-radius:4px; border:2px solid ${red}; box-shadow:0 2px 8px rgba(220,38,38,0.4);">★ Leave us a review on Google</a>
             </td>
           </tr>
           <tr>
@@ -155,16 +156,16 @@ export async function POST(req: Request) {
 Your total: $${total}
 Warranty & receipt: ${warrantyLink}
 
-We'd really appreciate a review: ${review}
+Quick favor: Your Google review helps us a ton and helps other customers find us. Leave one here — takes 1 min: ${review}
 
-Thank you for choosing us in the ${loc} community!`
+Thank you!`
       : `BGR SUITE: Thanks for choosing ${business}!
 
 Your total: $${total}
 
-We'd really appreciate it if you could take a moment to leave us an honest review of your service today: ${review}
+Quick favor: Your Google review helps us a ton and helps other customers. Leave one here — takes 1 min: ${review}
 
-Thank you for choosing us in the ${loc} community!`;
+Thank you!`;
 
     if (type === 'text') {
       const SDK = require('@ringcentral/sdk').SDK;
