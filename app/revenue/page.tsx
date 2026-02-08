@@ -224,8 +224,8 @@ export default function RevenuePage() {
           <div className="col-span-2">Service</div>
           <div className="col-span-2 text-center">Tech</div>
           <div className="col-span-1 text-right">Cost</div>
-          <div className="col-span-2 text-right">Amount</div>
-          <div className="col-span-1 text-right">Remove</div>
+          <div className="col-span-1 text-right">Amount</div>
+          <div className="col-span-2 text-right">Actions</div>
         </div>
         <div className="divide-y divide-neutral-800">
           {loading ? (
@@ -262,18 +262,18 @@ export default function RevenuePage() {
                     Set
                   </button>
                 </div>
-                <div className="col-span-2 text-right font-bold text-green-500">{tx.amount}</div>
-                <div className="col-span-1 text-right flex flex-col sm:flex-row gap-1 sm:gap-2 justify-end items-end">
+                <div className="col-span-1 text-right font-bold text-green-500 shrink-0">{tx.amount}</div>
+                <div className="col-span-2 text-right flex flex-col gap-2 justify-center items-end">
                   <Link
                     href={`/tech/invoice/${tx.id}?view=1`}
-                    className="text-[10px] font-bold uppercase text-neutral-400 hover:text-white"
+                    className="text-[10px] font-bold uppercase text-neutral-400 hover:text-white whitespace-nowrap"
                   >
                     View invoice
                   </Link>
                   <button
                     type="button"
                     onClick={() => removeJob(tx.id)}
-                    className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                    className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500 whitespace-nowrap"
                   >
                     Remove
                   </button>

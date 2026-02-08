@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Truck, Users, Package, Wallet, Settings, Calendar } from 'lucide-react';
+import { LayoutDashboard, Truck, Users, Package, Wallet, Settings, Calendar, BarChart2 } from 'lucide-react';
 
 export default function MobileNav({ userRole }: { userRole: string | null }) {
   const pathname = usePathname();
@@ -33,6 +33,7 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
       {isDispatch && link('/customers', 'Customers', Users)}
       {userRole === 'admin' && link('/inventory', 'Inventory', Package)}
       {userRole === 'admin' && link('/revenue', 'Revenue', Wallet, true)}
+      {userRole === 'admin' && link('/admin/reports', 'Reports', BarChart2)}
       {userRole === 'admin' && link('/admin/techs', 'Admin', Settings)}
     </nav>
   );
