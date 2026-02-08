@@ -41,6 +41,7 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
         {navLink('/', 'Dashboard')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch', 'Dispatch Center')}
+        {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch/schedule', 'Schedule')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/customers', 'Customers')}
 
         {userRole === 'admin' && (
@@ -48,6 +49,8 @@ export default function Sidebar() {
             <div className="my-4 mx-4 h-px bg-neutral-800" />
             {navLink('/inventory', 'Inventory')}
             {navLink('/revenue', 'Revenue')}
+            {navLink('/admin/reports', 'Reports & export')}
+            {navLink('/admin/business', 'Business settings')}
             {navLink('/admin/techs', 'User Mgmt')}
             {navLink('/admin/settings', 'Admin sign-in')}
           </>

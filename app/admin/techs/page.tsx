@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
+import Link from 'next/link';
 
 export default function AdminTechsPage() {
   const [users, setUsers] = useState<any[]>([]);
@@ -94,6 +95,17 @@ export default function AdminTechsPage() {
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">
           Techs & roles
         </p>
+        <div className="flex flex-wrap gap-3 mt-3">
+          <Link href="/admin/reports" className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white touch-manipulation">
+            Reports & export
+          </Link>
+          <Link href="/admin/business" className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white touch-manipulation">
+            Business settings
+          </Link>
+          <Link href="/admin/settings" className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white touch-manipulation">
+            Admin sign-in
+          </Link>
+        </div>
       </div>
 
       <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 mb-6 sm:mb-8 rounded-sm">

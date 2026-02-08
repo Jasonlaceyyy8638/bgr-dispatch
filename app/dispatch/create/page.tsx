@@ -29,11 +29,14 @@ export default function CreateJobPage() {
     state: 'OH',
     zip_code: '',
     job_description: '',
+    dispatcher_notes: '',
     assigned_tech_id: '',
     scheduled_date: '',
     start_time: '',
     end_time: '',
   });
+  const [customerHint, setCustomerHint] = useState<{ hint: string; lastJob: { date: string; service: string } | null } | null>(null);
+  const [hintLoading, setHintLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -56,25 +59,41 @@ export default function CreateJobPage() {
     load();
   }, []);
 
+  useEffect(() => {
+    const phone = (form.phone_number || '').trim().replace(/\D/g, '');
+    if (phone.length < 7) {
+      setCustomerHint(null);
+      return;
+    }
+    setHintLoading(true);
+    fetch(`/api/customers/lookup?phone=${encodeURIComponent(form.phone_number.trim())}`)
+      .then((r) => r.json())
+      .then((data) => setCustomerHint({ hint: data.hint || 'New customer', lastJob: data.lastJob || null }))
+      .catch(() => setCustomerHint(null))
+      .finally(() => setHintLoading(false));
+  }, [form.phone_number]);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
+    const insert: Record<string, unknown> = {
+      customer_name: form.customer_name,
+      phone_number: form.phone_number,
+      street_address: form.street_address,
+      city: form.city,
+      state: form.state,
+      zip_code: form.zip_code,
+      job_description: form.job_description,
+      assigned_tech_id: form.assigned_tech_id || null,
+      scheduled_date: form.scheduled_date,
+      start_time: form.start_time,
+      end_time: form.end_time,
+      status: 'booked',
+    };
+    if (form.dispatcher_notes.trim()) insert.dispatcher_notes = form.dispatcher_notes.trim();
     const { data, error } = await supabase
       .from('jobs')
-      .insert({
-        customer_name: form.customer_name,
-        phone_number: form.phone_number,
-        street_address: form.street_address,
-        city: form.city,
-        state: form.state,
-        zip_code: form.zip_code,
-        job_description: form.job_description,
-        assigned_tech_id: form.assigned_tech_id || null,
-        scheduled_date: form.scheduled_date,
-        start_time: form.start_time,
-        end_time: form.end_time,
-        status: 'booked',
-      })
+      .insert(insert)
       .select('id, assigned_tech_id')
       .single();
     if (error) {
@@ -128,6 +147,18 @@ export default function CreateJobPage() {
             required
           />
         </div>
+        {customerHint && (
+          <div className="bg-neutral-900 border border-neutral-700 p-3 rounded-sm">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-0.5">
+              {hintLoading ? 'Checking…' : customerHint.hint}
+            </p>
+            {customerHint.lastJob && (
+              <p className="text-xs text-neutral-400">
+                Last job: {customerHint.lastJob.date} — {customerHint.lastJob.service}
+              </p>
+            )}
+          </div>
+        )}
 
         <input
           className={inputClass}
@@ -208,10 +239,19 @@ export default function CreateJobPage() {
 
         <textarea
           className={`${inputClass} min-h-[100px] resize-y`}
-          placeholder="Notes"
+          placeholder="Job description / notes"
           value={form.job_description}
           onChange={(e) => setForm((f) => ({ ...f, job_description: e.target.value }))}
         />
+        <div>
+          <label className="text-[10px] font-bold text-neutral-500 uppercase block mb-1">Dispatcher notes (for tech)</label>
+          <textarea
+            className={`${inputClass} min-h-[80px] resize-y`}
+            placeholder="e.g. gate code, dog in yard"
+            value={form.dispatcher_notes}
+            onChange={(e) => setForm((f) => ({ ...f, dispatcher_notes: e.target.value }))}
+          />
+        </div>
 
         <button
           type="submit"

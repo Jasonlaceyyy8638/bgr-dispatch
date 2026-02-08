@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const { searchParams } = new URL(req.url);
+    const from = searchParams.get('from') || '';
+    const to = searchParams.get('to') || '';
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
     if (!supabaseUrl || !supabaseKey) {
@@ -15,20 +19,29 @@ export async function GET() {
     const selectWithCost = 'id, customer_name, job_description, service_type, price, payment_amount, cost_amount, payment_method, created_at, assigned_tech_id';
     const selectWithoutCost = 'id, customer_name, job_description, service_type, price, payment_amount, payment_method, created_at, assigned_tech_id';
 
-    const { data: dataWithCost, error: errWithCost } = await supabase
-      .from('jobs')
-      .select(selectWithCost)
-      .eq('status', 'Closed')
-      .order('created_at', { ascending: false })
-      .limit(100);
+    let qWith = supabase.from('jobs').select(selectWithCost).eq('status', 'Closed').order('created_at', { ascending: false }).limit(500);
+    let qWithout = supabase.from('jobs').select(selectWithoutCost).eq('status', 'Closed').order('created_at', { ascending: false }).limit(500);
+    if (from) {
+      const fromDate = new Date(from);
+      if (!isNaN(fromDate.getTime())) {
+        qWith = qWith.gte('created_at', fromDate.toISOString().slice(0, 10));
+        qWithout = qWithout.gte('created_at', fromDate.toISOString().slice(0, 10));
+      }
+    }
+    if (to) {
+      const toDate = new Date(to);
+      if (!isNaN(toDate.getTime())) {
+        const end = new Date(toDate);
+        end.setHours(23, 59, 59, 999);
+        qWith = qWith.lte('created_at', end.toISOString());
+        qWithout = qWithout.lte('created_at', end.toISOString());
+      }
+    }
+
+    const { data: dataWithCost, error: errWithCost } = await qWith;
 
     if (errWithCost && (errWithCost.message?.includes('cost_amount') || errWithCost.message?.includes('does not exist'))) {
-      const { data: dataNoCost, error: errNoCost } = await supabase
-        .from('jobs')
-        .select(selectWithoutCost)
-        .eq('status', 'Closed')
-        .order('created_at', { ascending: false })
-        .limit(100);
+      const { data: dataNoCost, error: errNoCost } = await qWithout;
       if (errNoCost) {
         console.error('Revenue fetch error:', errNoCost);
         return NextResponse.json({ error: errNoCost.message, txs: [] }, { status: 200 });

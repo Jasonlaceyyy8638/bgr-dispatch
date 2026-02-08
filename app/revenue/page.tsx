@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 type Tx = {
   id: string;
@@ -27,6 +28,30 @@ export default function RevenuePage() {
   const [loading, setLoading] = useState(true);
   const [revenueError, setRevenueError] = useState<string | null>(null);
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'year'>('today');
+
+  function getDateRange(p: 'today' | 'week' | 'month' | 'year') {
+    const now = new Date();
+    const to = new Date(now);
+    to.setHours(23, 59, 59, 999);
+    let from = new Date(now);
+    from.setHours(0, 0, 0, 0);
+    if (p === 'today') {
+      // from already today 00:00, to today 23:59
+    } else if (p === 'week') {
+      const day = from.getDay();
+      const diff = from.getDate() - day + (day === 0 ? -6 : 1); // Monday start
+      from.setDate(diff);
+    } else if (p === 'month') {
+      from.setDate(1);
+    } else if (p === 'year') {
+      from.setMonth(0, 1);
+    }
+    return {
+      from: from.toISOString().slice(0, 10),
+      to: to.toISOString().slice(0, 10),
+    };
+  }
 
   useEffect(() => {
     try {
@@ -45,7 +70,8 @@ export default function RevenuePage() {
     setLoading(true);
     setRevenueError(null);
     try {
-      const res = await fetch('/api/revenue');
+      const { from, to } = getDateRange(period);
+      const res = await fetch(`/api/revenue?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
       const json = await res.json();
       setTxs(json.txs ?? []);
       setTotalRevenue(Number(json.totalRevenue) || 0);
@@ -66,7 +92,7 @@ export default function RevenuePage() {
 
   useEffect(() => {
     if (allowed) fetchRevenue();
-  }, [allowed]);
+  }, [allowed, period]);
 
   async function setJobCost(jobId: string | number, costAmount: number) {
     const id = String(jobId ?? '').trim();
@@ -126,21 +152,22 @@ export default function RevenuePage() {
           </p>
         </div>
         <div className="flex gap-1 p-1 bg-neutral-950 border border-neutral-800 rounded-sm">
-          {['Today', 'Week', 'Month', 'Year'].map((label, i) => (
+          {(['today', 'week', 'month', 'year'] as const).map((p) => (
             <button
-              key={label}
+              key={p}
               type="button"
-              className={`flex-1 sm:flex-none px-3 py-2 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors ${
-                i === 0 ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-white'
+              onClick={() => setPeriod(p)}
+              className={`flex-1 sm:flex-none px-3 py-2 text-[10px] font-bold uppercase tracking-wider rounded-sm transition-colors touch-manipulation min-h-[44px] sm:min-h-0 ${
+                period === p ? 'bg-neutral-800 text-white' : 'text-neutral-500 hover:text-white'
               }`}
             >
-              {label}
+              {p === 'today' ? 'Today' : p === 'week' ? 'Week' : p === 'month' ? 'Month' : 'Year'}
             </button>
           ))}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-6 sm:mb-8">
         <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Gross revenue</p>
           <p className="text-xl sm:text-2xl font-bold text-green-500 mt-1">
@@ -153,24 +180,24 @@ export default function RevenuePage() {
             ${totalCost.toFixed(2)}
           </p>
           <p className="text-[10px] text-neutral-600 mt-0.5">
-            {totalCardFees > 0 && cardFeeRate ? `Includes $${totalCardFees.toFixed(2)} card fees (${cardFeeRate})` : 'Set cost per job below'}
+            {totalCardFees > 0 && cardFeeRate ? `Includes card fees below` : 'Set cost per job below'}
           </p>
         </div>
-        {totalCardFees > 0 && (
-          <div className="bg-neutral-950 border border-amber-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
-            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Card fees</p>
-            <p className="text-xl sm:text-2xl font-bold text-amber-500 mt-1">
-              ${totalCardFees.toFixed(2)}
-            </p>
-            {cardFeeRate && <p className="text-[10px] text-neutral-600 mt-0.5">{cardFeeRate}</p>}
-          </div>
-        )}
+        <div className="bg-neutral-950 border border-amber-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Card fees</p>
+          <p className="text-xl sm:text-2xl font-bold text-amber-500 mt-1">
+            ${totalCardFees.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">
+            {cardFeeRate ? cardFeeRate : 'Card payments only'}
+          </p>
+        </div>
         <div className="bg-neutral-950 border border-green-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider">Net profit (margin)</p>
           <p className="text-xl sm:text-2xl font-bold text-green-500 mt-1">
             ${netProfit.toFixed(2)}
           </p>
-          <p className="text-[10px] text-neutral-600 mt-0.5">Revenue − cost</p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">After all costs (incl. card fees)</p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Avg ticket</p>
@@ -236,7 +263,13 @@ export default function RevenuePage() {
                   </button>
                 </div>
                 <div className="col-span-2 text-right font-bold text-green-500">{tx.amount}</div>
-                <div className="col-span-1 text-right">
+                <div className="col-span-1 text-right flex flex-col sm:flex-row gap-1 sm:gap-2 justify-end items-end">
+                  <Link
+                    href={`/tech/invoice/${tx.id}?view=1`}
+                    className="text-[10px] font-bold uppercase text-neutral-400 hover:text-white"
+                  >
+                    View invoice
+                  </Link>
                   <button
                     type="button"
                     onClick={() => removeJob(tx.id)}
@@ -271,13 +304,21 @@ export default function RevenuePage() {
                     Set cost
                   </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => removeJob(tx.id)}
-                  className="text-[10px] font-bold uppercase text-red-600 self-start"
-                >
-                  Remove from revenue
-                </button>
+                <div className="flex gap-3">
+                  <Link
+                    href={`/tech/invoice/${tx.id}?view=1`}
+                    className="text-[10px] font-bold uppercase text-neutral-400 hover:text-white touch-manipulation"
+                  >
+                    View invoice (check photo)
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => removeJob(tx.id)}
+                    className="text-[10px] font-bold uppercase text-red-600 self-start touch-manipulation"
+                  >
+                    Remove from revenue
+                  </button>
+                </div>
               </div>
             </div>
           )))}

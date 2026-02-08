@@ -11,6 +11,9 @@ export default function TechJobPage() {
   const [loading, setLoading] = useState(true);
   const [techNotes, setTechNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [savingPhoto, setSavingPhoto] = useState(false);
 
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
 
@@ -23,8 +26,49 @@ export default function TechJobPage() {
     if (data) {
       setJob(data);
       setTechNotes(data.tech_notes ?? '');
+      setPhotoUrl(data.job_photo_url ?? '');
     }
     setLoading(false);
+  }
+
+  async function setStatus(status: string) {
+    if (!id) return;
+    setUpdatingStatus(true);
+    try {
+      const res = await fetch('/api/jobs/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Update failed');
+        return;
+      }
+      setJob((j: any) => (j ? { ...j, status } : j));
+    } finally {
+      setUpdatingStatus(false);
+    }
+  }
+
+  async function savePhotoUrl() {
+    if (!id) return;
+    setSavingPhoto(true);
+    try {
+      const res = await fetch('/api/jobs/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, job_photo_url: photoUrl || null }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Update failed');
+        return;
+      }
+      setJob((j: any) => (j ? { ...j, job_photo_url: photoUrl || null } : j));
+    } finally {
+      setSavingPhoto(false);
+    }
   }
 
   async function saveTechNotes() {
@@ -84,19 +128,45 @@ export default function TechJobPage() {
           href={mapUrl}
           target="_blank"
           rel="noreferrer"
-          className="bg-neutral-900 border border-neutral-800 p-4 sm:p-6 flex flex-col items-center justify-center gap-2 rounded-sm active:bg-neutral-800 min-h-[80px] sm:min-h-[100px]"
+          className="bg-neutral-900 border border-neutral-800 p-4 sm:p-6 flex flex-col items-center justify-center gap-2 rounded-sm active:bg-neutral-800 min-h-[80px] sm:min-h-[100px] touch-manipulation"
         >
           <span className="text-2xl">📍</span>
           <span className="text-white font-bold uppercase text-xs tracking-wider">Navigate</span>
         </a>
         <a
           href={`tel:${job.phone_number || ''}`}
-          className="bg-neutral-900 border border-neutral-800 p-4 sm:p-6 flex flex-col items-center justify-center gap-2 rounded-sm active:bg-neutral-800 min-h-[80px] sm:min-h-[100px]"
+          className="bg-neutral-900 border border-neutral-800 p-4 sm:p-6 flex flex-col items-center justify-center gap-2 rounded-sm active:bg-neutral-800 min-h-[80px] sm:min-h-[100px] touch-manipulation"
         >
           <span className="text-2xl">📞</span>
           <span className="text-white font-bold uppercase text-xs tracking-wider">Call</span>
         </a>
       </div>
+
+      {/* Status: En route / On site — only when not Closed */}
+      {job.status !== 'Closed' && job.status !== 'Authorized' && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {(job.status === 'booked' || job.status === 'en_route') && (
+            <button
+              type="button"
+              onClick={() => setStatus('en_route')}
+              disabled={updatingStatus || job.status === 'en_route'}
+              className="min-h-[48px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-amber-600 text-amber-500 rounded-sm hover:bg-amber-600/10 active:bg-amber-600/20 disabled:opacity-50 touch-manipulation"
+            >
+              En route
+            </button>
+          )}
+          {(job.status === 'booked' || job.status === 'en_route' || job.status === 'on_site') && (
+            <button
+              type="button"
+              onClick={() => setStatus('on_site')}
+              disabled={updatingStatus || job.status === 'on_site'}
+              className="min-h-[48px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-blue-600 text-blue-400 rounded-sm hover:bg-blue-600/10 active:bg-blue-600/20 disabled:opacity-50 touch-manipulation"
+            >
+              On site
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="space-y-3 sm:space-y-4">
         {job.status === 'Closed' ? (
@@ -130,6 +200,17 @@ export default function TechJobPage() {
         )}
       </div>
 
+      {job.dispatcher_notes && (
+        <div className="mt-6 sm:mt-8 bg-amber-950/30 border border-amber-900/50 p-4 sm:p-6 rounded-sm">
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-2">Dispatcher notes (for you)</p>
+          <div className="bg-black/50 border border-amber-900/30 p-3 sm:p-4 rounded-sm">
+            <pre className="text-amber-100 font-mono text-xs whitespace-pre-wrap leading-relaxed">
+              {job.dispatcher_notes}
+            </pre>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm">
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Job notes</p>
         <div className="bg-black border border-neutral-800 p-3 sm:p-4 rounded-sm">
@@ -138,6 +219,33 @@ export default function TechJobPage() {
           </pre>
         </div>
       </div>
+
+      {/* Optional job photo */}
+      <section className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm">
+        <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Job photo (optional)</p>
+        {job.job_photo_url ? (
+          <div className="mb-3">
+            <img src={job.job_photo_url} alt="Job" className="max-w-full max-h-64 object-contain rounded-sm border border-neutral-700" />
+          </div>
+        ) : null}
+        <div className="flex gap-2 flex-wrap">
+          <input
+            type="url"
+            value={photoUrl}
+            onChange={(e) => setPhotoUrl(e.target.value)}
+            placeholder="Paste photo URL"
+            className="flex-1 min-w-0 bg-black border border-neutral-800 p-3 text-white text-sm rounded-sm min-h-[44px] touch-manipulation"
+          />
+          <button
+            type="button"
+            onClick={savePhotoUrl}
+            disabled={savingPhoto}
+            className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider border-2 border-red-600 text-red-600 rounded-sm hover:bg-red-600/10 disabled:opacity-50 touch-manipulation"
+          >
+            {savingPhoto ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </section>
 
       <section className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm pb-8 mb-8" aria-label="Tech notes">
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Tech notes</p>

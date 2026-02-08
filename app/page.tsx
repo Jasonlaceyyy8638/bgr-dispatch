@@ -57,8 +57,27 @@ export default function DashboardPage() {
   const closedToday = jobs.filter((j) => j.status === 'Closed' && isToday(j.created_at));
   const earnedToday = closedToday.reduce((sum, j) => sum + Number(j.payment_amount ?? j.price ?? 0), 0);
 
+  const newJobBanner = currentJob && (() => {
+    const tenMinAgo = Date.now() - 10 * 60 * 1000;
+    const updated = currentJob.updated_at ? new Date(currentJob.updated_at).getTime() : 0;
+    const created = currentJob.created_at ? new Date(currentJob.created_at).getTime() : 0;
+    return updated >= tenMinAgo || created >= tenMinAgo;
+  })();
+
   return (
-    <div className="max-w-4xl mx-auto pb-6">
+    <div className="max-w-4xl mx-auto pb-24 sm:pb-8">
+      {newJobBanner && (
+        <div className="mb-4 p-4 bg-red-900/30 border border-red-700 rounded-sm flex items-center justify-between gap-2">
+          <span className="font-bold uppercase text-red-400 text-sm tracking-wider">New job assigned</span>
+          <button
+            type="button"
+            onClick={() => currentJob && router.push(`/tech/job/${currentJob.id}`)}
+            className="min-h-[44px] px-4 py-2 text-sm font-bold uppercase tracking-wider bg-red-600 text-white rounded-sm hover:bg-red-500 touch-manipulation"
+          >
+            Open job
+          </button>
+        </div>
+      )}
       <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6 sm:mb-8">
         <div className="bg-neutral-950 border border-neutral-800 p-3 sm:p-4 rounded-sm text-center">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Current</p>
@@ -124,6 +143,28 @@ export default function DashboardPage() {
           })()
         )}
       </div>
+
+      {/* Today's summary */}
+      {(closedToday.length > 0 || earnedToday > 0) && (
+        <section className="mt-8 border-t border-neutral-800 pt-6">
+          <h2 className="text-lg sm:text-xl font-bold uppercase text-white mb-4 tracking-tight">
+            Today&apos;s <span className="text-green-600">summary</span>
+          </h2>
+          <div className="bg-neutral-950 border border-neutral-800 rounded-sm overflow-hidden">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider p-3 border-b border-neutral-800">
+              Jobs completed today: {closedToday.length} · Earned: ${earnedToday.toFixed(2)}
+            </p>
+            <ul className="divide-y divide-neutral-800">
+              {closedToday.map((j) => (
+                <li key={j.id} className="p-3 sm:p-4 flex justify-between items-center gap-2">
+                  <span className="font-bold text-white uppercase text-sm truncate">{j.customer_name}</span>
+                  <span className="text-green-500 font-bold shrink-0">${Number(j.payment_amount ?? j.price ?? 0).toFixed(2)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
