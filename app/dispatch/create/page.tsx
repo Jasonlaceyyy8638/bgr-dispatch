@@ -82,6 +82,18 @@ export default function CreateJobPage() {
       setLoading(false);
       return;
     }
+    // Save customer to customer database when job is created (so they're in the list even before job closes)
+    const name = (form.customer_name || '').trim();
+    const phone = (form.phone_number || '').trim();
+    if (name && phone) {
+      try {
+        await fetch('/api/customers/upsert', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone }),
+        });
+      } catch (_) {}
+    }
     if (data?.id && data?.assigned_tech_id) {
       fetch('/api/notify-tech', {
         method: 'POST',

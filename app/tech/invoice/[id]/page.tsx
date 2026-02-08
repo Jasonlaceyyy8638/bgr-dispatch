@@ -143,16 +143,23 @@ export default function TechInvoiceIdPage() {
       setClosingWithCheck(false);
       return;
     }
-    const phone = (job?.phone_number || '').toString().trim();
-    const customerName = (job?.customer_name || '').toString().trim();
+    // Save to customer database (use contact.phone if job doesn't have it, e.g. from receipt form)
+    const phone = (job?.phone_number || contact?.phone || '').toString().trim();
+    const customerName = (job?.customer_name || 'Customer').toString().trim();
     if (phone && customerName) {
       try {
-        await fetch('/api/customers/upsert', {
+        const res = await fetch('/api/customers/upsert', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: customerName, phone }),
         });
-      } catch (_) {}
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          console.warn('Customer save:', err?.error || res.status);
+        }
+      } catch (e) {
+        console.warn('Customer save failed', e);
+      }
     }
     setClosingWithCheck(false);
     router.push('/');
@@ -206,7 +213,7 @@ export default function TechInvoiceIdPage() {
   }
 
   const isViewOnly = searchParams.get('view') === '1';
-  const displayTotal = Number(job.price) || 0;
+  const displayTotal = Number(job.payment_amount ?? job.price) || 0;
   const invoiceContent = job.service_type || job.job_description || 'No invoice details.';
   const displayInvoiceNumber = job.invoice_number || `INV-${String(job.id).padStart(5, '0')}`;
 

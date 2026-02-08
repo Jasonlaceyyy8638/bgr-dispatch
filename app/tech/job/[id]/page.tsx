@@ -99,22 +99,35 @@ export default function TechJobPage() {
       </div>
 
       <div className="space-y-3 sm:space-y-4">
-        <button
-          type="button"
-          onClick={() => router.push(`/tech/invoice/${id}`)}
-          className="w-full bg-neutral-800 hover:bg-neutral-700 py-4 sm:py-5 font-bold uppercase text-sm tracking-wider text-white border border-neutral-700 rounded-sm flex justify-between items-center px-4 sm:px-6 active:scale-[0.98]"
-        >
-          <span>Build invoice / signature</span>
-          <span>→</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => router.push(`/tech/payment/${id}`)}
-          className="w-full bg-green-700 hover:bg-green-600 py-4 sm:py-5 font-bold uppercase text-sm tracking-wider text-white border border-green-600 rounded-sm flex justify-between items-center px-4 sm:px-6 active:scale-[0.98]"
-        >
-          <span>Take payment</span>
-          <span>$</span>
-        </button>
+        {job.status === 'Closed' ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/tech/invoice/${id}?view=1`)}
+            className="w-full bg-neutral-800 hover:bg-neutral-700 py-4 sm:py-5 font-bold uppercase text-sm tracking-wider text-white border border-neutral-700 rounded-sm flex justify-between items-center px-4 sm:px-6 active:scale-[0.98]"
+          >
+            <span>View invoice</span>
+            <span>→</span>
+          </button>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={() => router.push(`/tech/invoice/${id}`)}
+              className="w-full bg-neutral-800 hover:bg-neutral-700 py-4 sm:py-5 font-bold uppercase text-sm tracking-wider text-white border border-neutral-700 rounded-sm flex justify-between items-center px-4 sm:px-6 active:scale-[0.98]"
+            >
+              <span>Build invoice / signature</span>
+              <span>→</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => router.push(`/tech/payment/${id}`)}
+              className="w-full bg-green-700 hover:bg-green-600 py-4 sm:py-5 font-bold uppercase text-sm tracking-wider text-white border border-green-600 rounded-sm flex justify-between items-center px-4 sm:px-6 active:scale-[0.98]"
+            >
+              <span>Take payment</span>
+              <span>$</span>
+            </button>
+          </>
+        )}
       </div>
 
       <div className="mt-6 sm:mt-8 bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm">
