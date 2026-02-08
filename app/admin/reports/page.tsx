@@ -16,8 +16,8 @@ export default function AdminReportsPage() {
   const [netProfit, setNetProfit] = useState(0);
   const [loading, setLoading] = useState(false);
   const [allowed, setAllowed] = useState<boolean | null>(null);
-  const [exporting, setExporting] = useState<'revenue' | 'jobs' | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [pdfExporting, setPdfExporting] = useState<'revenue' | 'jobs' | null>(null);
 
   useEffect(() => {
     try {
@@ -64,33 +64,204 @@ export default function AdminReportsPage() {
     return acc;
   }, {} as Record<string, { revenue: number; count: number }>);
 
-  async function downloadExport(type: 'jobs' | 'revenue') {
+  async function buildPdfHeader(doc: any, companyName: string, companyPhone: string, logoDataUrl: string | null, pageW: number, headerH: number) {
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, pageW, headerH, 'F');
+    if (logoDataUrl) {
+      try {
+        doc.addImage(logoDataUrl, 'PNG', 40, 14, 140, 44);
+      } catch {
+        // skip logo if addImage fails
+      }
+    }
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(companyName, logoDataUrl ? 200 : 40, 32);
+    if (companyPhone) {
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(companyPhone, logoDataUrl ? 200 : 40, 44);
+    }
+    doc.setTextColor(0, 0, 0);
+  }
+
+  async function downloadReportPdf() {
     setExportError(null);
-    setExporting(type);
+    setPdfExporting('revenue');
     try {
-      const params = new URLSearchParams({ type });
-      if (from) params.set('from', from);
-      if (to) params.set('to', to);
-      const res = await fetch(`${window.location.origin}/api/export?${params.toString()}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setExportError(err?.error || `Download failed (${res.status})`);
+      const origin = window.location.origin;
+      const [settingsRes, logoRes] = await Promise.all([
+        fetch(`${origin}/api/settings`),
+        fetch(`${origin}/logo.png`).catch(() => null),
+      ]);
+      const settings = settingsRes.ok ? await settingsRes.json().catch(() => ({})) : {};
+      const companyName = (settings.company_name || 'BGR').toString().trim() || 'BGR';
+      const companyPhone = (settings.company_phone || '').toString().trim();
+      let logoDataUrl: string | null = null;
+      if (logoRes?.ok) {
+        const logoBlob = await logoRes.blob();
+        logoDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(logoBlob);
+        });
+      }
+
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const headerH = 72;
+
+      await buildPdfHeader(doc, companyName, companyPhone, logoDataUrl, pageW, headerH);
+
+      let y = headerH + 20;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const generatedOn = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      doc.text(`Generated on ${generatedOn}`, 40, y);
+      y += 14;
+
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Revenue Report', 40, y);
+      y += 20;
+
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Period: ${from} to ${to}`, 40, y);
+      y += 16;
+
+      doc.setFont('helvetica', 'bold');
+      doc.text(`Revenue: $${totalRevenue.toFixed(2)}  |  Cost: $${totalCost.toFixed(2)}  |  Net: $${netProfit.toFixed(2)}  |  Jobs: ${txs.length}`, 40, y);
+      y += 24;
+
+      if (Object.keys(byTech).length > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('By tech', 40, y);
+        y += 8;
+        autoTable(doc, {
+          startY: y,
+          head: [['Tech', 'Jobs', 'Revenue']],
+          body: Object.entries(byTech).map(([tech, { count, revenue }]) => [tech, String(count), `$${revenue.toFixed(2)}`]),
+          theme: 'grid',
+          headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+          margin: { left: 40 },
+        });
+        y = (doc as any).lastAutoTable.finalY + 20;
+      }
+
+      if (txs.length > 0) {
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Transactions', 40, y);
+        y += 8;
+        autoTable(doc, {
+          startY: y,
+          head: [['Customer', 'Tech', 'Amount']],
+          body: txs.slice(0, 100).map((t) => [t.name || '—', t.tech || '—', `$${t.amountNum.toFixed(2)}`]),
+          theme: 'grid',
+          headStyles: { fillColor: [40, 40, 40], textColor: 255 },
+          margin: { left: 40 },
+          columnStyles: { 2: { halign: 'right' } },
+        });
+      }
+
+      const blob = doc.output('blob');
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) {
+      setExportError(e instanceof Error ? e.message : 'PDF download failed.');
+    } finally {
+      setPdfExporting(null);
+    }
+  }
+
+  async function downloadJobsPdf() {
+    setExportError(null);
+    setPdfExporting('jobs');
+    try {
+      const origin = window.location.origin;
+      const [settingsRes, logoRes, jobsRes] = await Promise.all([
+        fetch(`${origin}/api/settings`),
+        fetch(`${origin}/logo.png`).catch(() => null),
+        fetch(`${origin}/api/export?type=jobs&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&format=json`),
+      ]);
+      const settings = settingsRes.ok ? await settingsRes.json().catch(() => ({})) : {};
+      const companyName = (settings.company_name || 'BGR').toString().trim() || 'BGR';
+      const companyPhone = (settings.company_phone || '').toString().trim();
+      let logoDataUrl: string | null = null;
+      if (logoRes?.ok) {
+        const logoBlob = await logoRes.blob();
+        logoDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(logoBlob);
+        });
+      }
+      if (!jobsRes.ok) {
+        const err = await jobsRes.json().catch(() => ({}));
+        setExportError(err?.error || 'Could not load jobs.');
+        setPdfExporting(null);
         return;
       }
-      const blob = await res.blob();
-      const disposition = res.headers.get('Content-Disposition');
-      const match = disposition?.match(/filename="?([^";\n]+)"?/);
-      const filename = match ? match[1].trim() : (type === 'revenue' ? `revenue-${from}-${to}.csv` : `jobs-${from}-${to}.csv`);
+      const { jobs } = await jobsRes.json();
+      const jobList = Array.isArray(jobs) ? jobs : [];
+
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'letter' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const headerH = 72;
+      await buildPdfHeader(doc, companyName, companyPhone, logoDataUrl, pageW, headerH);
+
+      let y = headerH + 20;
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      const generatedOn = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
+      doc.text(`Generated on ${generatedOn}`, 40, y);
+      y += 14;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text('Jobs Report', 40, y);
+      y += 18;
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Period: ${from} to ${to}  ·  ${jobList.length} job${jobList.length !== 1 ? 's' : ''}`, 40, y);
+      y += 20;
+
+      if (jobList.length > 0) {
+        autoTable(doc, {
+          startY: y,
+          head: [['Customer', 'Address', 'Status', 'Tech', 'Amount']],
+          body: jobList.slice(0, 150).map((j: any) => [
+            (j.customer || '—').slice(0, 24),
+            (j.address || j.city || '—').slice(0, 28),
+            (j.status || '—').slice(0, 12),
+            (j.tech || '—').slice(0, 14),
+            j.paymentAmount != null && j.paymentAmount !== '' ? `$${Number(j.paymentAmount).toFixed(2)}` : j.price != null && j.price !== '' ? `$${Number(j.price).toFixed(2)}` : '—',
+          ]),
+          theme: 'grid',
+          headStyles: { fillColor: [40, 40, 40], textColor: 255, fontSize: 8 },
+          bodyStyles: { fontSize: 8 },
+          margin: { left: 40 },
+          columnStyles: { 4: { halign: 'right' } },
+        });
+      }
+
+      const blob = doc.output('blob');
       const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename;
-      a.click();
-      URL.revokeObjectURL(url);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
     } catch (e) {
-      setExportError(e instanceof Error ? e.message : 'Download failed. Check connection.');
+      setExportError(e instanceof Error ? e.message : 'PDF download failed.');
     } finally {
-      setExporting(null);
+      setPdfExporting(null);
     }
   }
 
@@ -174,22 +345,22 @@ export default function AdminReportsPage() {
           {exportError && (
             <p className="text-red-500 text-sm font-bold uppercase mb-2">{exportError}</p>
           )}
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
             <button
               type="button"
-              onClick={() => downloadExport('revenue')}
-              disabled={!!exporting}
+              onClick={downloadReportPdf}
+              disabled={!!pdfExporting || loading}
               className="w-full sm:w-auto inline-flex justify-center items-center min-h-[48px] px-6 bg-green-700 hover:bg-green-600 text-white font-bold uppercase text-sm tracking-wider rounded-sm touch-manipulation disabled:opacity-50"
             >
-              {exporting === 'revenue' ? 'Preparing…' : 'Download revenue CSV'}
+              {pdfExporting === 'revenue' ? 'Creating PDF…' : 'Download revenue as PDF'}
             </button>
             <button
               type="button"
-              onClick={() => downloadExport('jobs')}
-              disabled={!!exporting}
+              onClick={downloadJobsPdf}
+              disabled={!!pdfExporting || loading}
               className="w-full sm:w-auto inline-flex justify-center items-center min-h-[48px] px-6 bg-neutral-800 hover:bg-neutral-700 text-white font-bold uppercase text-sm tracking-wider rounded-sm touch-manipulation disabled:opacity-50"
             >
-              {exporting === 'jobs' ? 'Preparing…' : 'Download jobs CSV'}
+              {pdfExporting === 'jobs' ? 'Creating PDF…' : 'Download jobs as PDF'}
             </button>
           </div>
         </>
