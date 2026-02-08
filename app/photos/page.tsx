@@ -7,6 +7,7 @@ export default function PhotosPage() {
   const [photos, setPhotos] = useState<{ id: string; job_id: string; photo_url: string; address: string | null; customer_name: string | null; invoice_number: string | null; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     load();
@@ -17,6 +18,22 @@ export default function PhotosPage() {
     const json = await res.json().catch(() => ({}));
     setPhotos(Array.isArray(json.photos) ? json.photos : []);
     setLoading(false);
+  }
+
+  async function handleDelete(photoId: string) {
+    if (!confirm('Remove this photo from the list? The photo will be deleted.')) return;
+    setDeletingId(photoId);
+    try {
+      const res = await fetch(`/api/photos/${photoId}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Could not delete photo');
+        return;
+      }
+      setPhotos((prev) => prev.filter((p) => p.id !== photoId));
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   const searchLower = search.trim().toLowerCase();
@@ -85,7 +102,7 @@ export default function PhotosPage() {
                 <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">Work performed at</p>
                 <p className="text-neutral-300 text-sm break-words">{p.address ?? '—'}</p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 shrink-0 flex-wrap">
                 <Link
                   href={p.photo_url}
                   target="_blank"
@@ -101,6 +118,15 @@ export default function PhotosPage() {
                 >
                   View job →
                 </Link>
+                <span className="text-neutral-600">·</span>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(p.id)}
+                  disabled={deletingId === p.id}
+                  className="text-sm font-bold uppercase tracking-wider text-neutral-500 hover:text-red-600 disabled:opacity-50"
+                >
+                  {deletingId === p.id ? 'Deleting…' : 'Delete'}
+                </button>
               </div>
             </li>
           ))}

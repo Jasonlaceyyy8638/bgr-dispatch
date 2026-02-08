@@ -6,13 +6,19 @@ const BUCKET = 'job-photos';
 export async function POST(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    // Service role bypasses Storage RLS so uploads work without policy headaches
-    const supabaseKey =
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!supabaseUrl || !supabaseKey) {
-      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    // Service role required so Storage upload + job_photos insert bypass RLS (avoids "new row violates row-level security policy")
+    if (!supabaseUrl || !serviceKey) {
+      return NextResponse.json(
+        {
+          error:
+            'Photo upload not configured. Add SUPABASE_SERVICE_ROLE_KEY to your environment (e.g. Netlify → Site settings → Environment variables) and redeploy.',
+        },
+        { status: 503 }
+      );
     }
 
+    const supabase = createClient(supabaseUrl, serviceKey);
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const jobId = formData.get('jobId') as string | null;
@@ -24,7 +30,6 @@ export async function POST(req: Request) {
     const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'heic'].includes(ext) ? ext : 'jpg';
     const path = `${jobId.trim()}/${Date.now()}.${safeExt}`;
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
     const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
       contentType: file.type || `image/${safeExt}`,
       upsert: false,

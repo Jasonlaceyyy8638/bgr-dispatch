@@ -55,9 +55,13 @@ CREATE POLICY "Allow anon to read job_photos"
 DROP POLICY IF EXISTS "Allow anon to insert job_photos" ON job_photos;
 CREATE POLICY "Allow anon to insert job_photos"
   ON job_photos FOR INSERT TO anon WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow anon to delete job_photos" ON job_photos;
+CREATE POLICY "Allow anon to delete job_photos"
+  ON job_photos FOR DELETE TO anon USING (true);
 ```
 
-This lets the app (using the anon key) save and load photos even without the service role key.
+This lets the app (using the anon key) save, load, and delete photos even without the service role key.
 
 When a job gets a photo (Take pic, Choose file, or paste URL), the app inserts a row here. The Photos page reads from this table and supports search by customer name.
 
