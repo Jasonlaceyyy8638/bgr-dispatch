@@ -44,7 +44,7 @@ function buildInvoiceHtml(params: {
     : '<span style="font-size:18px; font-weight:bold; text-transform:uppercase; letter-spacing:0.08em; color:#fff;">' + businessName + '</span>';
   return `
 <!DOCTYPE html>
-<html xmlns="http://www.w3.org/1999/xhtml">
+<html xmlns="http://www.w3.org/1999/xhtml" style="background-color:#000000; background:#000000;">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -53,19 +53,24 @@ function buildInvoiceHtml(params: {
   <meta name="x-apple-color-scheme" content="dark">
   <title>Receipt - ${businessName}</title>
   <style type="text/css">
-    :root { color-scheme: dark; }
-    html, body, table, td { background-color: #000000 !important; background: #000000 !important; }
+    html, body { background-color: #000000 !important; background: #000000 !important; }
+    table, td { background-color: #000000 !important; }
     .logo-cell img { max-width: 280px !important; width: auto !important; height: auto !important; }
+    @media (prefers-color-scheme: dark) {
+      html, body, table, td { background-color: #000000 !important; background: #000000 !important; }
+    }
   </style>
   <!--[if mso]>
   <style type="text/css">body, table, td { background-color: #000000 !important; }</style>
   <![endif]-->
 </head>
-  <body bgcolor="#000000" style="margin:0; padding:0; background-color:#000000 !important; background:#000000 !important; color:#fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-  <!--[if mso]><table width="100%" cellpadding="0" cellspacing="0" bgcolor="#000000"><tr><td bgcolor="#000000"><![endif]-->
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="background-color:#000000 !important; background:#000000 !important; min-height:100vh;">
-  <tr><td bgcolor="#000000" style="background-color:#000000 !important; background:#000000 !important; padding:24px;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="background-color:#000000 !important; background:#000000 !important; border:2px solid #000000;">
+  <body bgcolor="#000000" style="margin:0; padding:0; background-color:#000000; background:#000000; color:#fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <!-- Gmail: single full-bleed table with bgcolor so black background sticks -->
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="background-color:#000000; background:#000000; min-height:100%;" role="presentation">
+  <tr><td bgcolor="#000000" style="background-color:#000000; background:#000000; padding:24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="background-color:#000000; background:#000000;">
+  <tr><td bgcolor="#000000" style="background-color:#000000; background:#000000; padding:24px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#000000" style="max-width:600px; margin:0 auto; background-color:#000000; background:#000000;">
     <tr>
       <td bgcolor="#000000" style="padding:24px; background-color:#000000 !important; background:#000000 !important; border:2px solid #000000;">
         <table width="100%" cellpadding="0" cellspacing="0" bgcolor="#000000" style="max-width:600px; margin:0 auto; background-color:#000000 !important; background:#000000 !important;">
@@ -113,7 +118,8 @@ function buildInvoiceHtml(params: {
   </table>
   </td></tr>
   </table>
-  <!--[if mso]></td></tr></table><![endif]-->
+  </td></tr>
+  </table>
 </body>
 </html>
   `.trim();
