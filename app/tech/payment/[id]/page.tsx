@@ -284,8 +284,11 @@ function CheckForm({
   onBack: () => void;
   inputClass: string;
 }) {
-  const [checkNumber, setCheckNumber] = useState('');
-  const [checkAmount, setCheckAmount] = useState('');
+  // Pre-fill if job already has check info saved (e.g. they came back after sending receipt)
+  const [checkNumber, setCheckNumber] = useState(() => (job?.check_number ?? '').toString());
+  const [checkAmount, setCheckAmount] = useState(() =>
+    job?.payment_method === 'check' && job?.payment_amount != null ? String(Number(job.payment_amount)) : ''
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 

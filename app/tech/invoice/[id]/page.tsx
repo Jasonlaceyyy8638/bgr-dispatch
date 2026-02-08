@@ -187,7 +187,11 @@ export default function TechInvoiceIdPage() {
         return;
       }
       alert('Receipt sent.');
-      router.push('/');
+      // For check payment: stay on this screen so they can take photo and close job; don't redirect
+      const isCheckPending = job?.payment_method === 'check' && !job?.check_photo_url;
+      if (!isCheckPending) {
+        router.push('/');
+      }
     } catch (e) {
       alert('Failed to send receipt. Try again.');
     }
