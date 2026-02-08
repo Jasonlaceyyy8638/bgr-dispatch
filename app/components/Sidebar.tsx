@@ -42,13 +42,14 @@ export default function Sidebar() {
         {navLink('/', 'Dashboard')}
         {navLink('/dispatch', 'Dispatch Center')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/customers', 'Customers')}
-        {navLink('/inventory', 'Inventory')}
 
         {userRole === 'admin' && (
           <>
             <div className="my-4 mx-4 h-px bg-neutral-800" />
+            {navLink('/inventory', 'Inventory')}
             {navLink('/revenue', 'Revenue')}
             {navLink('/admin/techs', 'User Mgmt')}
+            {navLink('/admin/settings', 'Admin sign-in')}
           </>
         )}
       </nav>

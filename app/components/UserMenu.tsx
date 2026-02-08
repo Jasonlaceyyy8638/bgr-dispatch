@@ -33,7 +33,7 @@ export default function UserMenu({ variant = 'sidebar' }: { variant?: 'sidebar' 
 
   function signOut() {
     localStorage.removeItem('tech_user');
-    window.location.href = '/login';
+    window.location.href = user.role === 'admin' ? '/login/admin' : '/login';
   }
 
   if (!user) return null;
@@ -79,13 +79,23 @@ export default function UserMenu({ variant = 'sidebar' }: { variant?: 'sidebar' 
             <p className="text-[10px] font-bold uppercase text-neutral-500 tracking-wider">Signed in</p>
             <p className="text-white font-semibold text-sm truncate">{user.name}</p>
           </div>
-          <Link
-            href="/login?change=1"
-            onClick={() => setOpen(false)}
-            className="block px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
-          >
-            Change PIN
-          </Link>
+          {user.role === 'admin' ? (
+            <Link
+              href="/admin/settings"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
+            >
+              Admin sign-in (email / password)
+            </Link>
+          ) : (
+            <Link
+              href="/login?change=1"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-neutral-400 hover:text-white hover:bg-neutral-900 transition-colors"
+            >
+              Change PIN
+            </Link>
+          )}
           <button
             type="button"
             onClick={signOut}

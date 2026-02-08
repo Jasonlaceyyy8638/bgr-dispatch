@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-
-const ADMIN_PIN = '1234';
+import { useRouter } from 'next/navigation';
 
 type Tx = {
   id: string;
@@ -12,15 +11,35 @@ type Tx = {
   tech: string;
   amount: string;
   amountNum: number;
+  costAmount?: number;
+  cardFeeAmount?: number;
+  paymentMethod?: string;
 };
 
 export default function RevenuePage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [pin, setPin] = useState('');
-  const [error, setError] = useState('');
+  const router = useRouter();
   const [txs, setTxs] = useState<Tx[]>([]);
+  const [totalRevenue, setTotalRevenue] = useState(0);
+  const [totalCost, setTotalCost] = useState(0);
+  const [totalCardFees, setTotalCardFees] = useState(0);
+  const [netProfit, setNetProfit] = useState(0);
+  const [cardFeeRate, setCardFeeRate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [revenueError, setRevenueError] = useState<string | null>(null);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      if (user.role !== 'admin') {
+        router.replace('/');
+        return;
+      }
+      setAllowed(true);
+    } catch {
+      router.replace('/');
+    }
+  }, [router]);
 
   async function fetchRevenue() {
     setLoading(true);
@@ -29,6 +48,13 @@ export default function RevenuePage() {
       const res = await fetch('/api/revenue');
       const json = await res.json();
       setTxs(json.txs ?? []);
+      setTotalRevenue(Number(json.totalRevenue) || 0);
+      setTotalCost(Number(json.totalCost) || 0);
+      setTotalCardFees(Number(json.totalCardFees) || 0);
+      setNetProfit(Number(json.netProfit) ?? 0);
+      const pct = json.cardFeePercent != null ? Number(json.cardFeePercent) : null;
+      const fix = json.cardFeeFixed != null ? Number(json.cardFeeFixed) : null;
+      setCardFeeRate(pct != null ? `${pct}%${fix != null && fix > 0 ? ` + $${fix.toFixed(2)}` : ''}` : null);
       if (json.error && !(json.txs?.length)) setRevenueError(json.error);
     } catch {
       setTxs([]);
@@ -39,9 +65,31 @@ export default function RevenuePage() {
   }
 
   useEffect(() => {
-    if (!unlocked) return;
-    fetchRevenue();
-  }, [unlocked]);
+    if (allowed) fetchRevenue();
+  }, [allowed]);
+
+  async function setJobCost(jobId: string | number, costAmount: number) {
+    const id = String(jobId ?? '').trim();
+    if (!id) return;
+    try {
+      const res = await fetch('/api/jobs/update-cost', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, cost_amount: costAmount }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data?.error || 'Could not update cost.');
+        return;
+      }
+      setTxs((prev) =>
+        prev.map((t) => (String(t.id) === id ? { ...t, costAmount } : t))
+      );
+      fetchRevenue();
+    } catch {
+      alert('Could not update cost.');
+    }
+  }
 
   async function removeJob(jobId: string | number) {
     if (!confirm('Remove this job from revenue? It will be deleted permanently.')) return;
@@ -64,45 +112,7 @@ export default function RevenuePage() {
     }
   }
 
-  function handlePin(e: React.FormEvent) {
-    e.preventDefault();
-    if (pin === ADMIN_PIN) {
-      setUnlocked(true);
-      setError('');
-    } else {
-      setError('Incorrect PIN');
-      setPin('');
-    }
-  }
-
-  if (!unlocked) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-neutral-950 border border-neutral-800 p-6 sm:p-8 rounded-sm">
-          <div className="text-center mb-6">
-            <span className="text-3xl">🔒</span>
-            <h2 className="text-lg font-bold uppercase text-white mt-3 tracking-wider">Admin</h2>
-            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">Enter PIN</p>
-          </div>
-          <form onSubmit={handlePin} className="space-y-4">
-            <input
-              type="password"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              className="w-full bg-black border border-neutral-800 p-4 text-white text-2xl font-bold text-center tracking-[0.4em] outline-none focus:border-red-600 rounded-sm"
-              placeholder="••••"
-              maxLength={4}
-              autoFocus
-            />
-            {error && <p className="text-red-600 text-xs font-bold uppercase text-center">{error}</p>}
-            <button type="submit" className="w-full bg-red-600 hover:bg-red-500 py-4 font-bold uppercase tracking-wider text-white rounded-sm active:scale-[0.98]">
-              Unlock
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  if (allowed !== true) return null;
 
   return (
     <div className="max-w-5xl mx-auto pb-6">
@@ -130,22 +140,47 @@ export default function RevenuePage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6 sm:mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 sm:mb-8">
         <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Gross revenue</p>
-          <p className="text-2xl sm:text-3xl font-bold text-green-500 mt-1">
-            ${txs.reduce((s, t) => s + t.amountNum, 0).toFixed(2)}
+          <p className="text-xl sm:text-2xl font-bold text-green-500 mt-1">
+            ${totalRevenue.toFixed(2)}
           </p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Total cost</p>
+          <p className="text-xl sm:text-2xl font-bold text-neutral-400 mt-1">
+            ${totalCost.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">
+            {totalCardFees > 0 && cardFeeRate ? `Includes $${totalCardFees.toFixed(2)} card fees (${cardFeeRate})` : 'Set cost per job below'}
+          </p>
+        </div>
+        {totalCardFees > 0 && (
+          <div className="bg-neutral-950 border border-amber-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+            <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Card fees</p>
+            <p className="text-xl sm:text-2xl font-bold text-amber-500 mt-1">
+              ${totalCardFees.toFixed(2)}
+            </p>
+            {cardFeeRate && <p className="text-[10px] text-neutral-600 mt-0.5">{cardFeeRate}</p>}
+          </div>
+        )}
+        <div className="bg-neutral-950 border border-green-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider">Net profit (margin)</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-500 mt-1">
+            ${netProfit.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">Revenue − cost</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Avg ticket</p>
-          <p className="text-2xl sm:text-3xl font-bold text-white mt-1">
-            {txs.length ? `$${(txs.reduce((s, t) => s + t.amountNum, 0) / txs.length).toFixed(2)}` : '$0.00'}
+          <p className="text-xl sm:text-2xl font-bold text-white mt-1">
+            {txs.length ? `$${(totalRevenue / txs.length).toFixed(2)}` : '$0.00'}
           </p>
         </div>
         <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
           <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Jobs done</p>
-          <p className="text-2xl sm:text-3xl font-bold text-blue-500 mt-1">{txs.length}</p>
+          <p className="text-xl sm:text-2xl font-bold text-blue-500 mt-1">{txs.length}</p>
         </div>
       </div>
 
@@ -158,9 +193,10 @@ export default function RevenuePage() {
         </div>
         <div className="hidden sm:grid sm:grid-cols-12 gap-4 p-4 bg-neutral-900/50 text-[10px] font-bold uppercase text-neutral-500 tracking-wider border-b border-neutral-800">
           <div className="col-span-2">Time</div>
-          <div className="col-span-3">Customer</div>
-          <div className="col-span-3">Service</div>
-          <div className="col-span-1 text-center">Tech</div>
+          <div className="col-span-2">Customer</div>
+          <div className="col-span-2">Service</div>
+          <div className="col-span-2 text-center">Tech</div>
+          <div className="col-span-1 text-right">Cost</div>
           <div className="col-span-2 text-right">Amount</div>
           <div className="col-span-1 text-right">Remove</div>
         </div>
@@ -178,10 +214,26 @@ export default function RevenuePage() {
             <div key={tx.id} className="p-4 sm:p-5 hover:bg-neutral-900/30">
               <div className="hidden sm:grid sm:grid-cols-12 gap-4 items-center">
                 <div className="col-span-2 text-neutral-500 text-sm">{tx.time}</div>
-                <div className="col-span-3 font-bold text-white uppercase text-sm">{tx.name}</div>
-                <div className="col-span-3 text-neutral-500 text-xs uppercase">{tx.service}</div>
-                <div className="col-span-1 text-center">
-                  <span className="text-[10px] font-bold px-2 py-1 bg-neutral-800 rounded-sm">{tx.tech}</span>
+                <div className="col-span-2 font-bold text-white uppercase text-sm truncate">{tx.name}</div>
+                <div className="col-span-2 text-neutral-500 text-xs uppercase min-w-0 truncate">{tx.service}</div>
+                <div className="col-span-2 text-center min-w-0">
+                  <span className="text-[10px] font-bold px-2 py-1 bg-neutral-800 rounded-sm whitespace-nowrap" title={tx.tech}>{tx.tech}</span>
+                </div>
+                <div className="col-span-1 text-right flex items-center justify-end gap-1">
+                  <span className="text-neutral-400 text-sm">{(tx.costAmount ?? 0) > 0 ? `$${Number(tx.costAmount).toFixed(2)}` : '—'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = prompt('Cost for this job ($):', (tx.costAmount ?? 0) > 0 ? String(tx.costAmount) : '');
+                      if (v != null && v.trim() !== '') {
+                        const num = parseFloat(v.trim());
+                        if (!Number.isNaN(num) && num >= 0) setJobCost(tx.id, num);
+                      }
+                    }}
+                    className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white"
+                  >
+                    Set
+                  </button>
                 </div>
                 <div className="col-span-2 text-right font-bold text-green-500">{tx.amount}</div>
                 <div className="col-span-1 text-right">
@@ -197,12 +249,28 @@ export default function RevenuePage() {
               <div className="sm:hidden flex flex-col gap-2">
                 <div className="flex justify-between items-start">
                   <div>
-                    <p className="text-[10px] text-neutral-500 uppercase">{tx.time} · {tx.tech}</p>
+                    <p className="text-[10px] text-neutral-500 uppercase">{tx.time} · <span className="whitespace-nowrap">{tx.tech}</span></p>
                     <h4 className="font-bold text-white uppercase">{tx.name}</h4>
                   </div>
                   <span className="font-bold text-green-500">{tx.amount}</span>
                 </div>
                 <p className="text-[10px] text-neutral-500 uppercase border-l-2 border-red-600 pl-2">{tx.service}</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-neutral-500">Cost: {(tx.costAmount ?? 0) > 0 ? `$${Number(tx.costAmount).toFixed(2)}` : '—'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const v = prompt('Cost for this job ($):', (tx.costAmount ?? 0) > 0 ? String(tx.costAmount) : '');
+                      if (v != null && v.trim() !== '') {
+                        const num = parseFloat(v.trim());
+                        if (!Number.isNaN(num) && num >= 0) setJobCost(tx.id, num);
+                      }
+                    }}
+                    className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white"
+                  >
+                    Set cost
+                  </button>
+                </div>
                 <button
                   type="button"
                   onClick={() => removeJob(tx.id)}

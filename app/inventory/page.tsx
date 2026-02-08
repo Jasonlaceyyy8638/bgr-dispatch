@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 
 const CATEGORIES = ['Labor', 'Springs', 'Rollers', 'Cables', 'Hardware', 'Seals', 'Openers', 'Electronics'];
@@ -14,16 +15,32 @@ const emptyPart = () => ({
 });
 
 export default function InventoryPage() {
+  const router = useRouter();
   const [parts, setParts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [editing, setEditing] = useState<any>(null);
   const [addForm, setAddForm] = useState(emptyPart());
   const [saving, setSaving] = useState(false);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      if (user.role !== 'admin') {
+        router.replace('/');
+        return;
+      }
+      setAllowed(true);
+    } catch {
+      router.replace('/');
+    }
+  }, [router]);
+
+  useEffect(() => {
+    if (!allowed) return;
     load();
-  }, []);
+  }, [allowed]);
 
   async function load() {
     const { data } = await supabase.from('inventory').select('*').order('part_name');
@@ -84,7 +101,13 @@ export default function InventoryPage() {
     return matchSearch && matchCat;
   });
 
+  const totalCostValue = filtered.reduce((sum, p) => sum + (Number(p.cost_price) || 0) * (Number(p.stock_qty) || 0), 0);
+  const totalRetailValue = filtered.reduce((sum, p) => sum + (Number(p.retail_price) || 0) * (Number(p.stock_qty) || 0), 0);
+  const netProfit = totalRetailValue - totalCostValue;
+
   const inputClass = 'w-full bg-black border border-neutral-800 p-3 sm:p-4 text-white font-semibold text-sm outline-none focus:border-red-600 rounded-sm';
+
+  if (allowed !== true) return null;
 
   return (
     <div className="max-w-5xl mx-auto pb-6">
@@ -93,8 +116,33 @@ export default function InventoryPage() {
           <span className="text-red-600">Inventory</span>
         </h1>
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">
-          Master parts list — add parts and edit prices
+          Master parts list — cost (what you pay), retail (what you charge), net profit
         </p>
+      </div>
+
+      {/* Net profit summary — admin only */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Total cost value</p>
+          <p className="text-xl sm:text-2xl font-bold text-neutral-400 mt-1">
+            ${totalCostValue.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">What you paid for current stock</p>
+        </div>
+        <div className="bg-neutral-950 border border-neutral-800 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Total retail value</p>
+          <p className="text-xl sm:text-2xl font-bold text-white mt-1">
+            ${totalRetailValue.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">At master retail prices</p>
+        </div>
+        <div className="bg-neutral-950 border border-green-900/50 p-4 sm:p-6 rounded-sm text-center sm:text-left">
+          <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider">Net profit (margin)</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-500 mt-1">
+            ${netProfit.toFixed(2)}
+          </p>
+          <p className="text-[10px] text-neutral-600 mt-0.5">Retail − cost on current stock</p>
+        </div>
       </div>
 
       {/* Add new part */}

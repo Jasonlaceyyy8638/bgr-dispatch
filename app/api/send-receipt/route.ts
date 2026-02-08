@@ -32,8 +32,9 @@ function buildInvoiceHtml(params: {
   reviewLink: string;
   useCidLogo: boolean;
   baseUrl: string;
+  warrantyUrl?: string;
 }): string {
-  const { total, invoiceNumber, businessName, location, phone, reviewLink, useCidLogo, baseUrl } = params;
+  const { total, invoiceNumber, businessName, location, phone, reviewLink, useCidLogo, baseUrl, warrantyUrl } = params;
   const red = '#dc2626';
   const border = '#262626';
   const muted = '#a3a3a3';
@@ -96,6 +97,7 @@ function buildInvoiceHtml(params: {
           <tr><td style="height:16px; background-color:#000000;" bgcolor="#000000"></td></tr>
           <tr>
             <td style="padding:20px 24px; border-top:1px solid ${border}; background-color:#000000;" bgcolor="#000000">
+              ${warrantyUrl ? `<p style="margin:0 0 10px 0; font-size:12px; color:${muted}; line-height:1.5;" bgcolor="#000000">Your warranty &amp; service agreement (90-day labor, 10-year parts) is available at the link below. Save or print it for your records.</p><p style="margin:0 0 14px 0;" bgcolor="#000000"><a href="${warrantyUrl}" style="color:${red}; font-size:12px; font-weight:bold; text-decoration:underline;">View warranty &amp; invoice details</a></p>` : ''}
               <p style="margin:0 0 14px 0; font-size:13px; color:${muted}; line-height:1.5;" bgcolor="#000000">We'd really appreciate it if you could take a moment to leave us an honest review of your service today.</p>
               <a href="${reviewLink}" style="display:inline-block; background-color:${red}; color:#fff !important; font-size:11px; font-weight:bold; text-transform:uppercase; letter-spacing:0.08em; text-decoration:none; padding:12px 20px; border-radius:2px;">Leave a review</a>
             </td>
@@ -120,7 +122,7 @@ function buildInvoiceHtml(params: {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { type, contact, total, reviewLink, businessName, location, origin, jobId } = body;
+    const { type, contact, total, reviewLink, businessName, location, jobId } = body;
 
     const business = businessName || 'Buckeye Garage Door Repair';
     const loc = location || 'Dayton';
@@ -138,10 +140,21 @@ export async function POST(req: Request) {
       }
     }
 
-    const message = `BGR SUITE: Thanks for choosing ${business}!
+    const origin = body.origin && typeof body.origin === 'string' ? body.origin.replace(/\/$/, '') : '';
+    const jobIdForLink = body.jobId && typeof body.jobId === 'string' && body.jobId.trim() ? body.jobId.trim() : '';
+    const warrantyLink = origin && jobIdForLink ? `${origin}/invoice/${jobIdForLink}/warranty` : '';
+    const message = warrantyLink
+      ? `BGR SUITE: Thanks for choosing ${business}!
 
 Your total: $${total}
-View Receipt: [Link]
+Warranty & receipt: ${warrantyLink}
+
+We'd really appreciate a review: ${review}
+
+Thank you for choosing us in the ${loc} community!`
+      : `BGR SUITE: Thanks for choosing ${business}!
+
+Your total: $${total}
 
 We'd really appreciate it if you could take a moment to leave us an honest review of your service today: ${review}
 
@@ -177,6 +190,7 @@ Thank you for choosing us in the ${loc} community!`;
       }
       const fromEmail = (process.env.RESEND_FROM_EMAIL || 'Buckeye Garage Door Repair <onboarding@resend.dev>').trim();
       const baseUrl = (typeof origin === 'string' && origin && !origin.includes('localhost')) ? origin.replace(/\/$/, '') : '';
+      const warrantyUrl = baseUrl && jobIdForLink ? `${baseUrl}/invoice/${jobIdForLink}/warranty` : undefined;
       const html = buildInvoiceHtml({
         total: String(total),
         invoiceNumber,
@@ -186,6 +200,7 @@ Thank you for choosing us in the ${loc} community!`;
         reviewLink: review,
         useCidLogo: !!logoAttachment,
         baseUrl,
+        warrantyUrl,
       });
       const attachments = logoAttachment
         ? [{ content: logoAttachment.content.toString('base64'), filename: 'logo.png', contentType: 'image/png' as const, contentId: 'logo' }]

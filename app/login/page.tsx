@@ -17,8 +17,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     async function load() {
-      const { data } = await supabase.from('tech_users').select('id, name, must_change_pin').order('name');
-      if (data) setUsers(data);
+      const { data } = await supabase.from('tech_users').select('id, name, must_change_pin, role, email').order('name');
+      if (data) {
+        setUsers(
+          data.filter(
+            (u: { role?: string; email?: string | null }) =>
+              u.role !== 'admin' || !u.email?.trim()
+          )
+        );
+      }
     }
     load();
     localStorage.removeItem('tech_user');
@@ -37,10 +44,17 @@ export default function LoginPage() {
       .eq('pin', pin.trim())
       .single();
     if (data) {
+      const toStore = { ...data };
+      delete (toStore as Record<string, unknown>).password_hash;
+      if (data.role === 'admin' && !data.email?.trim()) {
+        localStorage.setItem('tech_user', JSON.stringify(toStore));
+        window.location.href = '/admin/settings?first=1';
+        return;
+      }
       if (data.must_change_pin) {
         setIsChangingPin(true);
       } else {
-        localStorage.setItem('tech_user', JSON.stringify(data));
+        localStorage.setItem('tech_user', JSON.stringify(toStore));
         window.location.href = '/';
       }
     } else {
@@ -189,6 +203,9 @@ export default function LoginPage() {
             >
               Unlock
             </button>
+            <Link href="/login/admin" className="mt-4 text-[10px] font-bold uppercase text-neutral-500 hover:text-white tracking-wider">
+              Admin? Sign in with email & password
+            </Link>
           </div>
         ) : (
           <div className="w-full space-y-4 bg-neutral-950 p-6 sm:p-8 border border-neutral-800 rounded-sm">

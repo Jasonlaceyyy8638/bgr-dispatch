@@ -14,9 +14,15 @@ export default function AppShell({
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
+  const isPublicWarranty = pathname?.includes?.('/invoice/') && pathname?.endsWith?.('/warranty');
+
   useEffect(() => {
+    if (isPublicWarranty) {
+      setLoading(false);
+      return;
+    }
     const userData = localStorage.getItem('tech_user');
-    if (!userData && pathname !== '/login') {
+    if (!userData && pathname !== '/login' && !pathname?.startsWith?.('/login/admin')) {
       router.replace('/login');
     } else if (userData) {
       try {
@@ -27,7 +33,7 @@ export default function AppShell({
       }
     }
     setLoading(false);
-  }, [pathname, router]);
+  }, [pathname, router, isPublicWarranty]);
 
   if (loading) {
     return (
@@ -37,7 +43,7 @@ export default function AppShell({
     );
   }
 
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname === '/login/admin' || pathname?.startsWith?.('/login/admin/') || isPublicWarranty) {
     return <div className="bg-black text-white min-h-screen">{children}</div>;
   }
 

@@ -29,7 +29,7 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
       {link('/', 'Home', LayoutDashboard)}
       {link('/dispatch', 'Dispatch', Truck)}
       {(userRole === 'admin' || userRole === 'dispatcher') && link('/customers', 'Customers', Users)}
-      {link('/inventory', 'Inventory', Package)}
+      {userRole === 'admin' && link('/inventory', 'Inventory', Package)}
       {userRole === 'admin' && link('/revenue', 'Revenue', Wallet, true)}
       {userRole === 'admin' && link('/admin/techs', 'Admin', Settings)}
     </nav>

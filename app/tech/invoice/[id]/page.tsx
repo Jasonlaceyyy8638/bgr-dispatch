@@ -238,33 +238,35 @@ export default function TechInvoiceIdPage() {
       </header>
 
       {step === 'invoice' && (
-        <div className="p-4 space-y-3">
+        <div className="p-4 space-y-3 pb-40 md:pb-8">
           {ticket.map((item, index) => (
             <div key={index} className="bg-neutral-950 border border-neutral-800 p-4 rounded-sm">
-              <div className="flex justify-between items-start mb-3">
-                <div>
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 mb-3">
+                <div className="min-w-0 flex-1">
                   <span className="text-[10px] font-bold text-red-600 uppercase block">{item.category}</span>
-                  <span className="font-bold text-white uppercase text-sm">{item.part_name}</span>
+                  <span className="font-bold text-white uppercase text-sm break-words">{item.part_name}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setTicket((t) => t.filter((_, i) => i !== index))}
-                  className="text-[10px] font-bold uppercase text-neutral-500 hover:text-red-600"
+                  className="text-[10px] font-bold uppercase text-neutral-500 hover:text-red-600 shrink-0 self-start sm:self-auto"
                 >
                   Remove
                 </button>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                 <label className="text-[10px] font-bold text-neutral-500 uppercase shrink-0">Sell price (you can change) $</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={item.custom_price ?? ''}
-                  onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
-                  className="flex-1 bg-black border border-neutral-800 p-2 text-green-500 font-bold outline-none focus:border-red-600 rounded-sm"
-                />
-                <span className="text-[10px] text-neutral-500">Master retail ${item.retail_price}</span>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={item.custom_price ?? ''}
+                    onChange={(e) => updatePrice(index, parseFloat(e.target.value) || 0)}
+                    className="flex-1 min-w-0 bg-black border border-neutral-800 p-2.5 sm:p-2 text-green-500 font-bold outline-none focus:border-red-600 rounded-sm"
+                  />
+                  <span className="text-[10px] text-neutral-500 shrink-0">Master retail ${item.retail_price}</span>
+                </div>
               </div>
             </div>
           ))}
@@ -280,7 +282,7 @@ export default function TechInvoiceIdPage() {
               type="checkbox"
               checked={taxable}
               onChange={(e) => setTaxable(e.target.checked)}
-              className="w-4 h-4 rounded border-neutral-600 bg-black text-red-600 focus:ring-red-600"
+              className="w-4 h-4 rounded border-neutral-600 bg-black text-red-600 focus:ring-red-600 shrink-0"
             />
             <span className="text-sm font-semibold text-white uppercase">Taxable (turn off for non-taxable jobs)</span>
           </label>
@@ -288,7 +290,7 @@ export default function TechInvoiceIdPage() {
       )}
 
       {step === 'sign' && (
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-4 pb-40 md:pb-8">
           <h2 className="text-base font-bold uppercase text-white">Customer signature</h2>
           <div className="bg-neutral-950 border border-neutral-800 p-4 rounded-sm text-sm text-neutral-300 leading-relaxed">
             <p className="mb-3">
@@ -322,23 +324,23 @@ export default function TechInvoiceIdPage() {
       )}
 
       {step !== 'receipt' && (
-        <div className="fixed bottom-0 left-0 right-0 z-30 bg-neutral-900/95 border-t border-neutral-800 p-4 flex justify-between items-center max-w-md mx-auto">
-          <div>
+        <div className="fixed left-0 right-0 z-30 bg-neutral-900/95 border-t border-neutral-800 p-4 flex justify-between items-center max-w-md mx-auto bottom-20 md:bottom-0 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:pb-4">
+          <div className="min-w-0 flex-1 mr-3">
             {tax > 0 && (
               <>
                 <p className="text-[10px] font-bold text-neutral-500 uppercase">Subtotal / Tax</p>
-                <p className="text-sm text-neutral-400">${subtotal.toFixed(2)} + ${tax.toFixed(2)}</p>
+                <p className="text-sm text-neutral-400 truncate">${subtotal.toFixed(2)} + ${tax.toFixed(2)}</p>
               </>
             )}
             <p className="text-[10px] font-bold text-neutral-500 uppercase">Total</p>
-            <p className="text-2xl sm:text-3xl font-bold text-green-500">${total.toFixed(2)}</p>
+            <p className="text-xl sm:text-3xl font-bold text-green-500 truncate">${total.toFixed(2)}</p>
           </div>
           {step === 'invoice' ? (
-            <button type="button" onClick={toSign} className="bg-red-600 hover:bg-red-500 px-6 py-3 font-bold uppercase text-xs text-white rounded-sm active:scale-[0.98]">
+            <button type="button" onClick={toSign} className="bg-red-600 hover:bg-red-500 px-5 py-3 font-bold uppercase text-xs text-white rounded-sm active:scale-[0.98] shrink-0 touch-manipulation min-h-[44px]">
               Review & sign
             </button>
           ) : (
-            <button type="button" onClick={authorize} className="bg-green-600 hover:bg-green-500 px-6 py-3 font-bold uppercase text-xs text-white rounded-sm active:scale-[0.98]">
+            <button type="button" onClick={authorize} className="bg-green-600 hover:bg-green-500 px-5 py-3 font-bold uppercase text-xs text-white rounded-sm active:scale-[0.98] shrink-0 touch-manipulation min-h-[44px]">
               Authorize
             </button>
           )}
@@ -354,6 +356,9 @@ export default function TechInvoiceIdPage() {
             <div className="p-6 space-y-4">
               <p className="text-[10px] font-bold text-neutral-500 uppercase text-center">
                 Send invoice/receipt to customer (total: ${(receiptTotal ?? total).toFixed(2)})
+              </p>
+              <p className="text-[10px] text-neutral-500 text-center">
+                Email includes a link to their warranty (90-day labor, 10-year parts). They can print or save as PDF.
               </p>
               <input
                 className={inputClass}
@@ -375,6 +380,14 @@ export default function TechInvoiceIdPage() {
                   Email
                 </button>
               </div>
+              <a
+                href={typeof window !== 'undefined' ? `${window.location.origin}/invoice/${id}/warranty` : '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+              >
+                Open warranty page (share or print)
+              </a>
               <button type="button" onClick={() => router.push('/')} className="w-full text-[10px] font-bold uppercase text-neutral-500 hover:text-white">
                 Close without receipt
               </button>
