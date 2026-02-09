@@ -91,10 +91,6 @@ export default function PhotosPage() {
           <p className="text-[10px] text-neutral-600">
             Add a photo on a job, then close the job. Photos appear here after the job is closed.
           </p>
-          <div className="text-left max-w-md mx-auto mt-6 p-4 bg-neutral-900 rounded-sm border border-neutral-800">
-            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Photos not saving or customer names missing?</p>
-            <p className="text-[10px] text-neutral-500">Run the job_photos SQL + RLS in <code className="text-neutral-400">SCHEMA_ADDITIONS.md</code>. Add <code className="text-neutral-400">SUPABASE_SERVICE_ROLE_KEY</code> (Netlify env and .env.local) so uploads work and customer names show for search.</p>
-          </div>
         </div>
       ) : (
         <ul className="space-y-3">
