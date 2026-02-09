@@ -61,13 +61,13 @@ export async function GET(
     const invoiceContent = job.service_type || job.job_description || 'No invoice details.';
 
     const doc = new jsPDF({ unit: 'in', format: 'letter' });
-    const margin = 0.6;
+    const margin = 0.5;
     const pageW = 8.5;
     const pageH = 11;
     let y = margin;
-    const lineHeight = 0.24;
-    const smallLine = 0.17;
-    const sectionGap = 0.38;
+    const lineHeight = 0.18;
+    const smallLine = 0.14;
+    const sectionGap = 0.22;
 
     function fillPageBg() {
       doc.setFillColor(...BG);
@@ -75,7 +75,7 @@ export async function GET(
     }
     fillPageBg();
 
-    // Logo at top: centered, aspect ratio preserved, validated dimensions
+    // Logo at top: centered, strict aspect ratio (uniform scale to fit)
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
@@ -85,17 +85,16 @@ export async function GET(
       let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 2.8;
-      const maxLogoH = 1.35;
-      let logoW = Math.min(maxLogoW, wPx / 72);
-      let logoH = (hPx / wPx) * logoW;
-      if (logoH > maxLogoH) {
-        logoH = maxLogoH;
-        logoW = (wPx / hPx) * logoH;
-      }
+      const maxLogoW = 2.2;
+      const maxLogoH = 1.0;
+      const wIn = wPx / 72;
+      const hIn = hPx / 72;
+      const scale = Math.min(maxLogoW / wIn, maxLogoH / hIn, 1);
+      const logoW = wIn * scale;
+      const logoH = hIn * scale;
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
-      y += logoH + 0.5;
+      y += logoH + 0.35;
       logoAdded = true;
     } catch {
       // no logo file
@@ -108,7 +107,7 @@ export async function GET(
       y += smallLine + 0.2;
     }
 
-    y += 0.15;
+    y += 0.1;
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
     doc.line(margin, y, pageW - margin, y);
@@ -119,41 +118,35 @@ export async function GET(
     doc.setFontSize(11);
     doc.setTextColor(...WHITE);
     doc.text(BUSINESS_NAME.toUpperCase(), margin, y);
-    y += smallLine + 0.06;
+    y += smallLine + 0.02;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(...MUTED);
     doc.text(`Invoice ${invoiceNumber}`, margin, y);
-    y += smallLine + 0.04;
+    y += smallLine + 0.02;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...RED);
     doc.setFontSize(11);
     doc.text(`${BUSINESS_LOCATION.toUpperCase()}, OHIO`, margin, y);
-    y += smallLine + 0.04;
+    y += smallLine + 0.02;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...WHITE);
     doc.setFontSize(10);
     doc.text(BUSINESS_PHONE, margin, y);
     y += sectionGap;
 
-    // "THANK YOU FOR YOUR BUSINESS" + total (match email: white caps, then big red total)
+    // "THANK YOU FOR YOUR BUSINESS" + total (no red box; total in red text)
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.02);
-    doc.rect(margin, y - 0.08, pageW - margin * 2, 0.5, 'S');
-    doc.setDrawColor(...RED);
-    doc.setLineWidth(0.04);
-    doc.line(margin, y - 0.08, margin, y + 0.42);
+    doc.rect(margin, y - 0.06, pageW - margin * 2, 0.4, 'S');
     doc.setTextColor(...WHITE);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('THANK YOU FOR YOUR BUSINESS', margin + 0.15, y + 0.12);
-    doc.setFillColor(...RED);
-    doc.rect(margin + 0.15, y + 0.18, 1.5, 0.28, 'F');
-    doc.setFontSize(22);
-    doc.setTextColor(...WHITE);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`$${total.toFixed(2)}`, margin + 0.22, y + 0.38);
-    y += 0.75;
+    doc.text('THANK YOU FOR YOUR BUSINESS', margin + 0.12, y + 0.1);
+    doc.setFontSize(20);
+    doc.setTextColor(...RED);
+    doc.text(`$${total.toFixed(2)}`, margin + 0.12, y + 0.32);
+    y += 0.5;
 
     // Customer & date
     doc.setFontSize(9);
@@ -161,7 +154,7 @@ export async function GET(
     doc.setFont('helvetica', 'bold');
     doc.text('Customer', margin, y);
     doc.text('Date', margin + 3.5, y);
-    y += smallLine + 0.04;
+    y += smallLine + 0.02;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(job.customer_name || '—', margin, y);
@@ -180,7 +173,7 @@ export async function GET(
     const maxWidth = pageW - margin * 2;
     const contentLines = doc.splitTextToSize(invoiceContent, maxWidth);
     for (const line of contentLines) {
-      if (y > pageH - margin - 0.5) {
+      if (y > pageH - margin - 0.4) {
         doc.addPage();
         fillPageBg();
         y = margin;
@@ -188,12 +181,12 @@ export async function GET(
       doc.text(line, margin, y);
       y += smallLine;
     }
-    y += sectionGap;
+    y += sectionGap * 0.8;
 
     // Customer signature (if saved when job was authorized — run ALTER TABLE jobs ADD COLUMN signature_data text; in Supabase)
     const signatureData = (job as { signature_data?: string | null }).signature_data;
     if (signatureData && typeof signatureData === 'string' && signatureData.startsWith('data:image')) {
-      if (y > pageH - margin - 1.5) {
+      if (y > pageH - margin - 1.2) {
         doc.addPage();
         fillPageBg();
         y = margin;
@@ -202,15 +195,17 @@ export async function GET(
       doc.setFontSize(9);
       doc.setTextColor(...LABEL);
       doc.text('Customer signature', margin, y);
-      y += smallLine + 0.06;
+      y += smallLine + 0.04;
       try {
         const sigW = 3.2;
-        const sigH = 1;
-        doc.setDrawColor(...BORDER);
-        doc.setLineWidth(0.01);
+        const sigH = 0.9;
+        doc.setFillColor(240, 240, 240);
+        doc.rect(margin, y, sigW, sigH, 'F');
+        doc.setDrawColor(...MUTED);
+        doc.setLineWidth(0.02);
         doc.rect(margin, y, sigW, sigH, 'S');
         doc.addImage(signatureData, 'PNG', margin, y, sigW, sigH);
-        y += sigH + sectionGap;
+        y += sigH + sectionGap * 0.8;
       } catch (err) {
         console.error('Invoice PDF signature image error:', err);
         y += lineHeight;
@@ -219,12 +214,12 @@ export async function GET(
 
     // Payment section if present
     if (job.payment_method || job.payment_amount != null) {
-      if (y > pageH - margin - 0.8) {
+      if (y > pageH - margin - 0.6) {
         doc.addPage();
         fillPageBg();
         y = margin;
       }
-      y += sectionGap * 0.5;
+      y += sectionGap * 0.3;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(...LABEL);
@@ -250,7 +245,7 @@ export async function GET(
         doc.text(`Check #: ${job.check_number}`, margin, y);
         y += smallLine;
       }
-      y += sectionGap * 0.5;
+      y += sectionGap * 0.3;
     }
 
     // Subtotal / Tax / Total (matching app)
@@ -275,7 +270,7 @@ export async function GET(
       y += lineHeight;
     }
 
-    if (y > pageH - margin - 0.4) {
+    if (y > pageH - margin - 0.35) {
       doc.addPage();
       fillPageBg();
       y = margin;
@@ -287,11 +282,11 @@ export async function GET(
     doc.setFontSize(10);
     doc.setTextColor(...LABEL);
     doc.text('Total', margin, y);
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setTextColor(...GREEN);
-    doc.text(`$${total.toFixed(2)}`, pageW - margin - 1.2, y);
+    doc.text(`$${total.toFixed(2)}`, pageW - margin - 1.1, y);
 
-    y += lineHeight * 1.5;
+    y += lineHeight * 1.2;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...LABEL);

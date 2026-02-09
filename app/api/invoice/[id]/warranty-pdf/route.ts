@@ -79,7 +79,7 @@ export async function GET(
     }
     fillPageBg();
 
-    // Logo at top: centered, aspect ratio preserved, validated dimensions
+    // Logo at top: centered, strict aspect ratio (uniform scale to fit)
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
@@ -89,17 +89,16 @@ export async function GET(
       let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 2.8;
-      const maxLogoH = 1.35;
-      let logoW = Math.min(maxLogoW, wPx / 72);
-      let logoH = (hPx / wPx) * logoW;
-      if (logoH > maxLogoH) {
-        logoH = maxLogoH;
-        logoW = (wPx / hPx) * logoH;
-      }
+      const maxLogoW = 2.2;
+      const maxLogoH = 1.0;
+      const wIn = wPx / 72;
+      const hIn = hPx / 72;
+      const scale = Math.min(maxLogoW / wIn, maxLogoH / hIn, 1);
+      const logoW = wIn * scale;
+      const logoH = hIn * scale;
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
-      y += logoH + 0.5;
+      y += logoH + 0.35;
       logoAdded = true;
     } catch {
       // no logo file, use text
