@@ -8,13 +8,15 @@ const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
 const BUSINESS_LOCATION = process.env.BUSINESS_LOCATION || 'Dayton';
 
-// Match app/email colors: red #dc2626, muted #a3a3a3, label #737373, green #22c55e
+// Dark theme to match app: dark background, light text, red accents
 const RED = [220, 38, 38] as [number, number, number];
-const MUTED = [163, 163, 163] as [number, number, number];
-const LABEL = [115, 115, 115] as [number, number, number];
+const BG = [23, 23, 23] as [number, number, number];
 const WHITE = [255, 255, 255] as [number, number, number];
+const LIGHT = [230, 230, 230] as [number, number, number];
+const MUTED = [180, 180, 180] as [number, number, number];
+const LABEL = [150, 150, 150] as [number, number, number];
 const GREEN = [34, 197, 94] as [number, number, number];
-const BORDER = [38, 38, 38] as [number, number, number];
+const BORDER = [60, 60, 60] as [number, number, number];
 
 export async function GET(
   _req: Request,
@@ -66,22 +68,30 @@ export async function GET(
     const lineHeight = 0.2;
     const smallLine = 0.14;
 
-    // Black background for full page
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageW, pageH, 'F');
+    function fillPageBg() {
+      doc.setFillColor(...BG);
+      doc.rect(0, 0, pageW, pageH, 'F');
+    }
+    fillPageBg();
 
-    // Logo at top: centered, aspect ratio preserved, taller header space
+    // Logo at top: centered, aspect ratio preserved, validated dimensions
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
       const logoBuffer = await readFile(logoPath);
       const logoBase64 = logoBuffer.toString('base64');
-      // PNG IHDR: width at bytes 16-19, height at 20-23 (big-endian)
-      const wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
-      const hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
-      const maxLogoW = 2.5; // inches
-      const logoW = Math.min(maxLogoW, wPx / 72);
-      const logoH = (hPx / wPx) * logoW;
+      let wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
+      let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      if (wPx < 1 || wPx > 5000) wPx = 400;
+      if (hPx < 1 || hPx > 5000) hPx = 120;
+      const maxLogoW = 2.5;
+      const maxLogoH = 1.2;
+      let logoW = Math.min(maxLogoW, wPx / 72);
+      let logoH = (hPx / wPx) * logoW;
+      if (logoH > maxLogoH) {
+        logoH = maxLogoH;
+        logoW = (wPx / hPx) * logoH;
+      }
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
       y += logoH + 0.35;
@@ -91,7 +101,7 @@ export async function GET(
     }
     if (!logoAdded) {
       doc.setFontSize(10);
-      doc.setTextColor(...LABEL);
+      doc.setTextColor(...LIGHT);
       doc.setFont('helvetica', 'bold');
       doc.text(BUSINESS_NAME, margin, y);
       y += smallLine + 0.2;
@@ -108,7 +118,7 @@ export async function GET(
     doc.text(`Invoice ${invoiceNumber}`, margin, y);
     y += smallLine;
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...LIGHT);
     doc.text(`${BUSINESS_LOCATION}, Ohio`, margin, y);
     y += smallLine;
     doc.setFont('helvetica', 'normal');
@@ -116,20 +126,23 @@ export async function GET(
     doc.text(BUSINESS_PHONE, margin, y);
     y += lineHeight * 1.2;
 
-    // "Thank you for your business" + total (red box style)
+    // "Thank you for your business" + total (total on red background)
     doc.setDrawColor(...BORDER);
-    doc.setFillColor(0, 0, 0);
+    doc.setLineWidth(0.02);
     doc.rect(margin, y - 0.08, pageW - margin * 2, 0.5, 'S');
     doc.setDrawColor(...RED);
-    doc.setLineWidth(0.03);
+    doc.setLineWidth(0.04);
     doc.line(margin, y - 0.08, margin, y + 0.42);
-    doc.setTextColor(...LABEL);
+    doc.setTextColor(...MUTED);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
     doc.text('Thank you for your business', margin + 0.15, y + 0.12);
+    doc.setFillColor(...RED);
+    doc.rect(margin + 0.15, y + 0.18, 1.5, 0.28, 'F');
     doc.setFontSize(22);
-    doc.setTextColor(...RED);
-    doc.text(`$${total.toFixed(2)}`, margin + 0.15, y + 0.38);
+    doc.setTextColor(...WHITE);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`$${total.toFixed(2)}`, margin + 0.22, y + 0.38);
     y += 0.6;
 
     // Customer & date
@@ -140,7 +153,7 @@ export async function GET(
     doc.text('Date', margin + 3.5, y);
     y += smallLine;
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...LIGHT);
     doc.text(job.customer_name || '—', margin, y);
     doc.text(serviceDate, margin + 3.5, y);
     y += lineHeight * 1.2;
@@ -153,14 +166,13 @@ export async function GET(
     y += lineHeight;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...LIGHT);
     const maxWidth = pageW - margin * 2;
     const contentLines = doc.splitTextToSize(invoiceContent, maxWidth);
     for (const line of contentLines) {
       if (y > pageH - margin - 0.5) {
         doc.addPage();
-        doc.setFillColor(0, 0, 0);
-        doc.rect(0, 0, pageW, pageH, 'F');
+        fillPageBg();
         y = margin;
       }
       doc.text(line, margin, y);
@@ -168,13 +180,12 @@ export async function GET(
     }
     y += lineHeight;
 
-    // Customer signature (if saved when job was authorized)
+    // Customer signature (if saved when job was authorized — run ALTER TABLE jobs ADD COLUMN signature_data text; in Supabase)
     const signatureData = (job as { signature_data?: string | null }).signature_data;
     if (signatureData && typeof signatureData === 'string' && signatureData.startsWith('data:image')) {
       if (y > pageH - margin - 1.5) {
         doc.addPage();
-        doc.setFillColor(0, 0, 0);
-        doc.rect(0, 0, pageW, pageH, 'F');
+        fillPageBg();
         y = margin;
       }
       doc.setFont('helvetica', 'bold');
@@ -185,6 +196,9 @@ export async function GET(
       try {
         const sigW = 3.2;
         const sigH = 1;
+        doc.setDrawColor(...BORDER);
+        doc.setLineWidth(0.01);
+        doc.rect(margin, y, sigW, sigH, 'S');
         doc.addImage(signatureData, 'PNG', margin, y, sigW, sigH);
         y += sigH + lineHeight;
       } catch (err) {
@@ -197,8 +211,7 @@ export async function GET(
     if (job.payment_method || job.payment_amount != null) {
       if (y > pageH - margin - 0.8) {
         doc.addPage();
-        doc.setFillColor(0, 0, 0);
-        doc.rect(0, 0, pageW, pageH, 'F');
+        fillPageBg();
         y = margin;
       }
       doc.setFont('helvetica', 'bold');
@@ -209,18 +222,20 @@ export async function GET(
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
       if (job.payment_method) {
-        doc.setTextColor(...WHITE);
+        doc.setTextColor(...LIGHT);
         doc.text(`Method: ${String(job.payment_method).toUpperCase()}`, margin, y);
         y += smallLine;
       }
       if (job.payment_amount != null || total > 0) {
+        doc.setTextColor(...LABEL);
         doc.text('Amount:', margin, y);
         doc.setTextColor(...GREEN);
         doc.text(`$${total.toFixed(2)}`, margin + 1.2, y);
-        doc.setTextColor(...WHITE);
+        doc.setTextColor(...LIGHT);
         y += smallLine;
       }
       if (job.payment_method?.toLowerCase() === 'check' && job.check_number) {
+        doc.setTextColor(...LIGHT);
         doc.text(`Check #: ${job.check_number}`, margin, y);
         y += smallLine;
       }
@@ -231,8 +246,7 @@ export async function GET(
     if (job.taxable && taxAmount > 0) {
       if (y > pageH - margin - 0.6) {
         doc.addPage();
-        doc.setFillColor(0, 0, 0);
-        doc.rect(0, 0, pageW, pageH, 'F');
+        fillPageBg();
         y = margin;
       }
       doc.setDrawColor(...BORDER);
@@ -240,20 +254,19 @@ export async function GET(
       y += lineHeight;
       doc.setTextColor(...LABEL);
       doc.text('Subtotal', margin, y);
-      doc.setTextColor(...WHITE);
+      doc.setTextColor(...LIGHT);
       doc.text(`$${subtotal.toFixed(2)}`, pageW - margin - 1, y);
       y += smallLine;
       doc.setTextColor(...LABEL);
       doc.text('Tax', margin, y);
-      doc.setTextColor(...WHITE);
+      doc.setTextColor(...LIGHT);
       doc.text(`$${taxAmount.toFixed(2)}`, pageW - margin - 1, y);
       y += lineHeight;
     }
 
     if (y > pageH - margin - 0.4) {
       doc.addPage();
-      doc.setFillColor(0, 0, 0);
-      doc.rect(0, 0, pageW, pageH, 'F');
+      fillPageBg();
       y = margin;
     }
     doc.setDrawColor(...BORDER);

@@ -302,6 +302,7 @@ export default function CustomersPage() {
 
             <div className="mt-6 pt-4 border-t border-neutral-800">
               <h4 className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-3">Previous jobs / invoices</h4>
+              <p className="text-[10px] text-neutral-500 mb-3">View a job to see its photos and details.</p>
               {jobsLoading ? (
                 <p className="text-neutral-500 text-xs uppercase">Loading…</p>
               ) : customerJobs.length === 0 ? (
@@ -332,6 +333,14 @@ export default function CustomersPage() {
                           <span className="text-green-500 font-bold text-sm shrink-0">${amt.toFixed(2)}</span>
                         </div>
                         <div className="flex flex-wrap gap-3 mt-3 pt-2 border-t border-neutral-800">
+                          <Link
+                            href={`/tech/job/${job.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                          >
+                            View job (photos & details)
+                          </Link>
                           <Link
                             href={`/api/invoice/${job.id}/invoice-pdf`}
                             target="_blank"

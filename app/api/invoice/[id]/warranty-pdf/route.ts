@@ -8,12 +8,13 @@ const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
 const BUSINESS_LOCATION = process.env.BUSINESS_LOCATION || 'Dayton';
 
-// Match invoice PDF: red #dc2626, muted #a3a3a3, label #737373, white, green #22c55e, border #262626
+// Dark theme to match app: dark background, light text, red accents
 const RED = [220, 38, 38] as [number, number, number];
-const MUTED = [163, 163, 163] as [number, number, number];
-const LABEL = [115, 115, 115] as [number, number, number];
-const WHITE = [255, 255, 255] as [number, number, number];
-const BORDER = [38, 38, 38] as [number, number, number];
+const BG = [23, 23, 23] as [number, number, number];
+const LIGHT = [230, 230, 230] as [number, number, number];
+const MUTED = [180, 180, 180] as [number, number, number];
+const LABEL = [150, 150, 150] as [number, number, number];
+const BORDER = [60, 60, 60] as [number, number, number];
 
 export async function GET(
   _req: Request,
@@ -70,21 +71,30 @@ export async function GET(
     const lineHeight = 0.2;
     const smallLine = 0.14;
 
-    // Black background (match invoice)
-    doc.setFillColor(0, 0, 0);
-    doc.rect(0, 0, pageW, pageH, 'F');
+    function fillPageBg() {
+      doc.setFillColor(...BG);
+      doc.rect(0, 0, pageW, pageH, 'F');
+    }
+    fillPageBg();
 
-    // Logo at top: centered, aspect ratio preserved, taller header space (match invoice)
+    // Logo at top: centered, aspect ratio preserved, validated dimensions
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
       const logoBuffer = await readFile(logoPath);
       const logoBase64 = logoBuffer.toString('base64');
-      const wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
-      const hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      let wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
+      let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      if (wPx < 1 || wPx > 5000) wPx = 400;
+      if (hPx < 1 || hPx > 5000) hPx = 120;
       const maxLogoW = 2.5;
-      const logoW = Math.min(maxLogoW, wPx / 72);
-      const logoH = (hPx / wPx) * logoW;
+      const maxLogoH = 1.2;
+      let logoW = Math.min(maxLogoW, wPx / 72);
+      let logoH = (hPx / wPx) * logoW;
+      if (logoH > maxLogoH) {
+        logoH = maxLogoH;
+        logoW = (wPx / hPx) * logoH;
+      }
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
       y += logoH + 0.35;
@@ -95,7 +105,7 @@ export async function GET(
 
     if (!logoAdded) {
       doc.setFontSize(10);
-      doc.setTextColor(...LABEL);
+      doc.setTextColor(...LIGHT);
       doc.setFont('helvetica', 'bold');
       doc.text(BUSINESS_NAME, margin, y);
       y += smallLine + 0.2;
@@ -112,7 +122,7 @@ export async function GET(
     doc.text(`${BUSINESS_LOCATION}, Ohio · ${BUSINESS_PHONE}`, margin, y);
     y += smallLine;
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...LIGHT);
     doc.setFontSize(18);
     doc.text('Warranty & Service Agreement', margin, y);
     y += lineHeight;
@@ -131,7 +141,7 @@ export async function GET(
     doc.text('Servicing technician', margin + 3.5, y);
     y += smallLine;
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...WHITE);
+    doc.setTextColor(...LIGHT);
     doc.text(customerName, margin, y);
     doc.text(techName || '—', margin + 3.5, y);
     y += lineHeight * 1.2;
@@ -157,8 +167,7 @@ export async function GET(
       for (const line of lines) {
         if (y > pageH - margin - 0.5) {
           doc.addPage();
-          doc.setFillColor(0, 0, 0);
-          doc.rect(0, 0, pageW, pageH, 'F');
+          fillPageBg();
           y = margin;
         }
         doc.text(line, margin, y);
@@ -170,8 +179,7 @@ export async function GET(
     y += lineHeight;
     if (y > pageH - margin - 0.5) {
       doc.addPage();
-      doc.setFillColor(0, 0, 0);
-      doc.rect(0, 0, pageW, pageH, 'F');
+      fillPageBg();
       y = margin;
     }
     doc.setDrawColor(...BORDER);
