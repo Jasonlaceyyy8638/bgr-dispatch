@@ -8,15 +8,15 @@ const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
 const BUSINESS_LOCATION = process.env.BUSINESS_LOCATION || 'Dayton';
 
-// Dark theme to match app: dark background, light text, red accents
+// Match email receipt: black background, white text, red accents
 const RED = [220, 38, 38] as [number, number, number];
-const BG = [23, 23, 23] as [number, number, number];
+const BG = [0, 0, 0] as [number, number, number];
 const WHITE = [255, 255, 255] as [number, number, number];
-const LIGHT = [230, 230, 230] as [number, number, number];
-const MUTED = [180, 180, 180] as [number, number, number];
-const LABEL = [150, 150, 150] as [number, number, number];
+const LIGHT = [240, 240, 240] as [number, number, number];
+const MUTED = [200, 200, 200] as [number, number, number];
+const LABEL = [180, 180, 180] as [number, number, number];
 const GREEN = [34, 197, 94] as [number, number, number];
-const BORDER = [60, 60, 60] as [number, number, number];
+const BORDER = [50, 50, 50] as [number, number, number];
 
 export async function GET(
   _req: Request,
@@ -112,31 +112,39 @@ export async function GET(
     doc.line(0, y + 0.1, pageW, y + 0.1);
     y += lineHeight + 0.2;
 
-    doc.setFontSize(10);
+    // Company name (match email: BUCKEYE GARAGE DOOR REPAIR)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor(...WHITE);
+    doc.text(BUSINESS_NAME.toUpperCase(), margin, y);
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
     doc.setTextColor(...MUTED);
     doc.text(`Invoice ${invoiceNumber}`, margin, y);
     y += smallLine;
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...LIGHT);
-    doc.text(`${BUSINESS_LOCATION}, Ohio`, margin, y);
+    doc.setTextColor(...RED);
+    doc.setFontSize(11);
+    doc.text(`${BUSINESS_LOCATION.toUpperCase()}, OHIO`, margin, y);
     y += smallLine;
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...MUTED);
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(10);
     doc.text(BUSINESS_PHONE, margin, y);
     y += lineHeight * 1.2;
 
-    // "Thank you for your business" + total (total on red background)
+    // "THANK YOU FOR YOUR BUSINESS" + total (match email: white caps, then big red total)
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.02);
     doc.rect(margin, y - 0.08, pageW - margin * 2, 0.5, 'S');
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.04);
     doc.line(margin, y - 0.08, margin, y + 0.42);
-    doc.setTextColor(...MUTED);
+    doc.setTextColor(...WHITE);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('Thank you for your business', margin + 0.15, y + 0.12);
+    doc.text('THANK YOU FOR YOUR BUSINESS', margin + 0.15, y + 0.12);
     doc.setFillColor(...RED);
     doc.rect(margin + 0.15, y + 0.18, 1.5, 0.28, 'F');
     doc.setFontSize(22);
