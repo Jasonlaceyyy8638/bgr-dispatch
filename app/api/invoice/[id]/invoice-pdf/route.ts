@@ -1,0 +1,242 @@
+import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import { jsPDF } from 'jspdf';
+
+const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
+const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
+const BUSINESS_LOCATION = process.env.BUSINESS_LOCATION || 'Dayton';
+
+// Match app/email colors: red #dc2626, muted #a3a3a3, label #737373, green #22c55e
+const RED = [220, 38, 38] as [number, number, number];
+const MUTED = [163, 163, 163] as [number, number, number];
+const LABEL = [115, 115, 115] as [number, number, number];
+const WHITE = [255, 255, 255] as [number, number, number];
+const GREEN = [34, 197, 94] as [number, number, number];
+const BORDER = [38, 38, 38] as [number, number, number];
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    if (!id?.trim()) {
+      return NextResponse.json({ error: 'Invoice id required' }, { status: 400 });
+    }
+
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!supabaseUrl || !anonKey) {
+      return NextResponse.json({ error: 'Supabase not configured' }, { status: 500 });
+    }
+
+    const supabase = serviceKey
+      ? createClient(supabaseUrl, serviceKey)
+      : createClient(supabaseUrl, anonKey);
+
+    const { data: job } = await supabase
+      .from('jobs')
+      .select(
+        'id, customer_name, invoice_number, created_at, service_type, job_description, price, tax_amount, taxable, payment_method, payment_amount, check_number, status'
+      )
+      .eq('id', id.trim())
+      .single();
+
+    if (!job) {
+      return NextResponse.json({ error: 'Job not found' }, { status: 404 });
+    }
+
+    const invoiceNumber = job.invoice_number || `INV-${String(job.id).padStart(5, '0')}`;
+    const total = Number(job.payment_amount ?? job.price ?? 0);
+    const taxAmount = Number(job.tax_amount ?? 0);
+    const subtotal = total - taxAmount;
+    const serviceDate = job.created_at
+      ? new Date(job.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
+      : '—';
+    const invoiceContent = job.service_type || job.job_description || 'No invoice details.';
+
+    const doc = new jsPDF({ unit: 'in', format: 'letter' });
+    const margin = 0.6;
+    const pageW = 8.5;
+    const pageH = 11;
+    let y = margin;
+    const lineHeight = 0.2;
+    const smallLine = 0.14;
+
+    // Black background for full page
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, pageW, pageH, 'F');
+
+    // Red bar under header area (like email border-bottom)
+    doc.setDrawColor(...RED);
+    doc.setLineWidth(0.03);
+    doc.line(0, margin + 0.9, pageW, margin + 0.9);
+    y = margin + 0.35;
+
+    doc.setFontSize(10);
+    doc.setTextColor(...LABEL);
+    doc.setFont('helvetica', 'bold');
+    doc.text(BUSINESS_NAME, margin, y);
+    y += smallLine;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(`Invoice ${invoiceNumber}`, margin, y);
+    y += smallLine;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...WHITE);
+    doc.text(`${BUSINESS_LOCATION}, Ohio`, margin, y);
+    y += smallLine;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(BUSINESS_PHONE, margin, y);
+    y += lineHeight * 1.2;
+
+    // "Thank you for your business" + total (red box style)
+    doc.setDrawColor(...BORDER);
+    doc.setFillColor(0, 0, 0);
+    doc.rect(margin, y - 0.08, pageW - margin * 2, 0.5, 'S');
+    doc.setDrawColor(...RED);
+    doc.setLineWidth(0.03);
+    doc.line(margin, y - 0.08, margin, y + 0.42);
+    doc.setTextColor(...LABEL);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Thank you for your business', margin + 0.15, y + 0.12);
+    doc.setFontSize(22);
+    doc.setTextColor(...RED);
+    doc.text(`$${total.toFixed(2)}`, margin + 0.15, y + 0.38);
+    y += 0.6;
+
+    // Customer & date
+    doc.setFontSize(9);
+    doc.setTextColor(...LABEL);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Customer', margin, y);
+    doc.text('Date', margin + 3.5, y);
+    y += smallLine;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...WHITE);
+    doc.text(job.customer_name || '—', margin, y);
+    doc.text(serviceDate, margin + 3.5, y);
+    y += lineHeight * 1.2;
+
+    // Details (invoice content)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...LABEL);
+    doc.text('Details', margin, y);
+    y += lineHeight;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(...WHITE);
+    const maxWidth = pageW - margin * 2;
+    const contentLines = doc.splitTextToSize(invoiceContent, maxWidth);
+    for (const line of contentLines) {
+      if (y > pageH - margin - 0.5) {
+        doc.addPage();
+        doc.setFillColor(0, 0, 0);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        y = margin;
+      }
+      doc.text(line, margin, y);
+      y += smallLine;
+    }
+    y += lineHeight;
+
+    // Payment section if present
+    if (job.payment_method || job.payment_amount != null) {
+      if (y > pageH - margin - 0.8) {
+        doc.addPage();
+        doc.setFillColor(0, 0, 0);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        y = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...LABEL);
+      doc.text('Payment', margin, y);
+      y += lineHeight;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      if (job.payment_method) {
+        doc.setTextColor(...WHITE);
+        doc.text(`Method: ${String(job.payment_method).toUpperCase()}`, margin, y);
+        y += smallLine;
+      }
+      if (job.payment_amount != null || total > 0) {
+        doc.text('Amount:', margin, y);
+        doc.setTextColor(...GREEN);
+        doc.text(`$${total.toFixed(2)}`, margin + 1.2, y);
+        doc.setTextColor(...WHITE);
+        y += smallLine;
+      }
+      if (job.payment_method?.toLowerCase() === 'check' && job.check_number) {
+        doc.text(`Check #: ${job.check_number}`, margin, y);
+        y += smallLine;
+      }
+      y += lineHeight * 0.5;
+    }
+
+    // Subtotal / Tax / Total (matching app)
+    if (job.taxable && taxAmount > 0) {
+      if (y > pageH - margin - 0.6) {
+        doc.addPage();
+        doc.setFillColor(0, 0, 0);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        y = margin;
+      }
+      doc.setDrawColor(...BORDER);
+      doc.line(margin, y, pageW - margin, y);
+      y += lineHeight;
+      doc.setTextColor(...LABEL);
+      doc.text('Subtotal', margin, y);
+      doc.setTextColor(...WHITE);
+      doc.text(`$${subtotal.toFixed(2)}`, pageW - margin - 1, y);
+      y += smallLine;
+      doc.setTextColor(...LABEL);
+      doc.text('Tax', margin, y);
+      doc.setTextColor(...WHITE);
+      doc.text(`$${taxAmount.toFixed(2)}`, pageW - margin - 1, y);
+      y += lineHeight;
+    }
+
+    if (y > pageH - margin - 0.4) {
+      doc.addPage();
+      doc.setFillColor(0, 0, 0);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      y = margin;
+    }
+    doc.setDrawColor(...BORDER);
+    doc.line(margin, y, pageW - margin, y);
+    y += lineHeight;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(...LABEL);
+    doc.text('Total', margin, y);
+    doc.setFontSize(18);
+    doc.setTextColor(...GREEN);
+    doc.text(`$${total.toFixed(2)}`, pageW - margin - 1.2, y);
+
+    y += lineHeight * 1.5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...LABEL);
+    doc.text(`${BUSINESS_NAME} · ${BUSINESS_LOCATION}, OH · ${BUSINESS_PHONE}`, margin, y);
+
+    const filename = `invoice-${invoiceNumber.replace(/\s/g, '-')}.pdf`;
+    const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
+
+    return new NextResponse(pdfBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Length': String(pdfBuffer.length),
+      },
+    });
+  } catch (e) {
+    console.error('Invoice PDF error:', e);
+    return NextResponse.json({ error: 'Failed to generate invoice PDF' }, { status: 500 });
+  }
+}

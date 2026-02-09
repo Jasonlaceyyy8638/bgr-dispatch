@@ -43,7 +43,7 @@ export default function Sidebar() {
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch', 'Dispatch Center')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch/schedule', 'Schedule')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/customers', 'Customers')}
-        {navLink('/photos', 'Photos')}
+        {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/photos', 'Photos')}
 
         {userRole === 'admin' && (
           <>

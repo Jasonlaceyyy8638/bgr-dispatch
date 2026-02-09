@@ -439,7 +439,7 @@ export default function TechInvoiceIdPage() {
                 Send invoice/receipt to customer (total: ${(receiptTotal ?? total).toFixed(2)})
               </p>
               <p className="text-[10px] text-neutral-500 text-center">
-                Email includes a link to their warranty (90-day labor, 10-year parts). They can print or save as PDF.
+                Email includes a link to download their warranty PDF (90-day labor, 10-year parts). They can save it and open it anytime without internet.
               </p>
               <input
                 className={inputClass}
@@ -461,14 +461,24 @@ export default function TechInvoiceIdPage() {
                   Email
                 </button>
               </div>
-              <a
-                href={typeof window !== 'undefined' ? `${window.location.origin}/invoice/${id}/warranty` : '#'}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block text-center text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
-              >
-                Open warranty page (share or print)
-              </a>
+              <div className="flex flex-col gap-1 text-center">
+                <a
+                  href={typeof window !== 'undefined' ? `${window.location.origin}/api/invoice/${id}/invoice-pdf` : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                >
+                  Download invoice PDF
+                </a>
+                <a
+                  href={typeof window !== 'undefined' ? `${window.location.origin}/api/invoice/${id}/warranty-pdf` : '#'}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                >
+                  Download warranty PDF
+                </a>
+              </div>
 
               {/* Check: take photo then close job */}
               {job?.payment_method === 'check' && !job?.check_photo_url && (

@@ -2,16 +2,29 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function PhotosPage() {
+  const router = useRouter();
   const [photos, setPhotos] = useState<{ id: string; job_id: string; photo_url: string; address: string | null; customer_name: string | null; invoice_number: string | null; created_at: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      const role = user.role || 'tech';
+      if (role !== 'admin' && role !== 'dispatcher') {
+        router.replace('/');
+        return;
+      }
+    } catch {
+      router.replace('/');
+      return;
+    }
     load();
-  }, []);
+  }, [router]);
 
   async function load() {
     const res = await fetch('/api/photos');
@@ -79,8 +92,8 @@ export default function PhotosPage() {
             Add a photo on a job, then close the job. Photos appear here after the job is closed.
           </p>
           <div className="text-left max-w-md mx-auto mt-6 p-4 bg-neutral-900 rounded-sm border border-neutral-800">
-            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Photos not saving?</p>
-            <p className="text-[10px] text-neutral-500">Run the job_photos SQL + RLS policies in <code className="text-neutral-400">SCHEMA_ADDITIONS.md</code>, or add <code className="text-neutral-400">SUPABASE_SERVICE_ROLE_KEY</code> to .env.local and restart the dev server.</p>
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Photos not saving or customer names missing?</p>
+            <p className="text-[10px] text-neutral-500">Run the job_photos SQL + RLS in <code className="text-neutral-400">SCHEMA_ADDITIONS.md</code>. Add <code className="text-neutral-400">SUPABASE_SERVICE_ROLE_KEY</code> (Netlify env and .env.local) so uploads work and customer names show for search.</p>
           </div>
         </div>
       ) : (
@@ -92,7 +105,7 @@ export default function PhotosPage() {
             >
               <div className="min-w-0 flex-1">
                 <p className="text-white font-bold uppercase text-sm tracking-wider">
-                  {p.customer_name ?? '—'}
+                  {p.customer_name ? p.customer_name : `Job #${p.job_id}`}
                 </p>
                 {p.invoice_number && (
                   <p className="text-[10px] font-bold text-red-600 uppercase tracking-wider mt-0.5">

@@ -13,6 +13,8 @@ export async function GET() {
     const supabase = serviceKey
       ? createClient(supabaseUrl, serviceKey)
       : createClient(supabaseUrl, anonKey);
+    // Use service role for jobs fetch when available so we can backfill customer_name (anon may be blocked by RLS on jobs)
+    const jobsClient = serviceKey ? createClient(supabaseUrl, serviceKey) : supabase;
 
     const { data: closedJobIds, error: jobsError } = await supabase
       .from('jobs')
@@ -37,7 +39,7 @@ export async function GET() {
     const list = photos ?? [];
     if (list.length === 0) return NextResponse.json({ photos: [] });
 
-    const { data: jobs } = await supabase
+    const { data: jobs } = await jobsClient
       .from('jobs')
       .select('id, customer_name, street_address, address, city, state, zip_code, invoice_number')
       .in('id', ids);

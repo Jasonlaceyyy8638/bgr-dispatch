@@ -333,23 +333,31 @@ export default function CustomersPage() {
                         </div>
                         <div className="flex flex-wrap gap-3 mt-3 pt-2 border-t border-neutral-800">
                           <Link
+                            href={`/api/invoice/${job.id}/invoice-pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                          >
+                            Download invoice PDF
+                          </Link>
+                          <Link
+                            href={`/api/invoice/${job.id}/warranty-pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                          >
+                            Download warranty PDF
+                          </Link>
+                          <Link
                             href={`/tech/invoice/${job.id}?view=1`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
+                            className="text-[10px] font-bold uppercase text-neutral-500 hover:text-white"
                           >
-                            Invoice (open page)
-                          </Link>
-                          <Link
-                            href={`/invoice/${job.id}/warranty`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] font-bold uppercase text-red-600 hover:text-red-500"
-                          >
-                            Warranty (open page)
+                            View invoice page
                           </Link>
                         </div>
-                        <p className="text-[10px] text-neutral-500 mt-1">Opens in new tab — use browser Print to save as PDF.</p>
+                        <p className="text-[10px] text-neutral-500 mt-1">Invoice and warranty open as PDFs you can save and open anytime.</p>
                       </li>
                     );
                   })}
