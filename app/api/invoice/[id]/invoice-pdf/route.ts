@@ -65,9 +65,9 @@ export async function GET(
     const pageW = 8.5;
     const pageH = 11;
     let y = margin;
-    const lineHeight = 0.18;
-    const smallLine = 0.14;
-    const sectionGap = 0.22;
+    const lineHeight = 0.17;
+    const smallLine = 0.13;
+    const sectionGap = 0.2;
 
     function fillPageBg() {
       doc.setFillColor(...BG);
@@ -104,8 +104,8 @@ export async function GET(
       }
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 1.5;
-      const maxLogoH = 1.25;
+      const maxLogoW = 1.9;
+      const maxLogoH = 1.55;
       const wIn = wPx / 72;
       const hIn = hPx / 72;
       const scale = Math.min(maxLogoW / wIn, maxLogoH / hIn, 1);
@@ -113,7 +113,7 @@ export async function GET(
       const logoH = hIn * scale;
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, isJpeg ? 'JPEG' : 'PNG', logoX, y, logoW, logoH);
-      y += logoH + 0.35;
+      y += logoH + 0.28;
       logoAdded = true;
     } catch {
       // no logo file
