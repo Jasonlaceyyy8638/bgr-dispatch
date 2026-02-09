@@ -17,6 +17,7 @@ Add columns for job status flow, dispatcher notes, and optional photo:
 -- Status values used: booked, en_route, on_site, Authorized, Closed
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS dispatcher_notes text;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_photo_url text;
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS signature_data text;
 ```
 
 (No change needed for `status` if it already accepts text; use values: `booked`, `en_route`, `on_site`, `Authorized`, `Closed`.)

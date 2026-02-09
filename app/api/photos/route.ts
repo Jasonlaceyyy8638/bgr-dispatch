@@ -43,10 +43,16 @@ export async function GET() {
       .from('jobs')
       .select('id, customer_name, street_address, address, city, state, zip_code, invoice_number')
       .in('id', ids);
-    const jobMap = new Map((jobs ?? []).map((j: { id: number; customer_name?: string; street_address?: string; address?: string; city?: string; state?: string; zip_code?: string; invoice_number?: string }) => [j.id, j]));
+    const jobMap = new Map<number | string, { id: number; customer_name?: string; street_address?: string; address?: string; city?: string; state?: string; zip_code?: string; invoice_number?: string }>();
+    for (const j of jobs ?? []) {
+      const row = j as { id: number; customer_name?: string; street_address?: string; address?: string; city?: string; state?: string; zip_code?: string; invoice_number?: string };
+      jobMap.set(row.id, row);
+      jobMap.set(Number(row.id), row);
+      jobMap.set(String(row.id), row);
+    }
 
-    const photosWithJob = list.map((p: { job_id: number; customer_name: string | null; address: string | null; [k: string]: unknown }) => {
-      const job = jobMap.get(p.job_id);
+    const photosWithJob = list.map((p: { job_id: number | string; customer_name: string | null; address: string | null; [k: string]: unknown }) => {
+      const job = jobMap.get(Number(p.job_id)) ?? jobMap.get(p.job_id) ?? jobMap.get(String(p.job_id));
       const customer_name = p.customer_name || job?.customer_name || null;
       const address = p.address || (job ? [job.street_address || job.address, job.city, job.state, job.zip_code].filter(Boolean).join(', ') : null) || null;
       const invoice_number = job?.invoice_number || null;

@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
+import { readFile } from 'fs/promises';
+import path from 'path';
 
 const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
@@ -38,7 +40,7 @@ export async function GET(
     const { data: job } = await supabase
       .from('jobs')
       .select(
-        'id, customer_name, invoice_number, created_at, service_type, job_description, price, tax_amount, taxable, payment_method, payment_amount, check_number, status'
+        'id, customer_name, invoice_number, created_at, service_type, job_description, price, tax_amount, taxable, payment_method, payment_amount, check_number, status, signature_data'
       )
       .eq('id', id.trim())
       .single();
@@ -68,17 +70,34 @@ export async function GET(
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageW, pageH, 'F');
 
-    // Red bar under header area (like email border-bottom)
+    // Logo at top (match warranty)
+    let logoAdded = false;
+    try {
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+      const logoBuffer = await readFile(logoPath);
+      const logoBase64 = logoBuffer.toString('base64');
+      const logoW = 2.2;
+      const logoH = 0.65;
+      doc.addImage(logoBase64, 'PNG', margin, y, logoW, logoH);
+      y += logoH + 0.15;
+      logoAdded = true;
+    } catch {
+      // no logo file
+    }
+    if (!logoAdded) {
+      doc.setFontSize(10);
+      doc.setTextColor(...LABEL);
+      doc.setFont('helvetica', 'bold');
+      doc.text(BUSINESS_NAME, margin, y);
+      y += smallLine;
+    }
+
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
-    doc.line(0, margin + 0.9, pageW, margin + 0.9);
-    y = margin + 0.35;
+    doc.line(0, y + 0.1, pageW, y + 0.1);
+    y += lineHeight + 0.15;
 
     doc.setFontSize(10);
-    doc.setTextColor(...LABEL);
-    doc.setFont('helvetica', 'bold');
-    doc.text(BUSINESS_NAME, margin, y);
-    y += smallLine;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED);
     doc.text(`Invoice ${invoiceNumber}`, margin, y);
@@ -143,6 +162,30 @@ export async function GET(
       y += smallLine;
     }
     y += lineHeight;
+
+    // Customer signature (if saved)
+    const signatureData = (job as { signature_data?: string | null }).signature_data;
+    if (signatureData && typeof signatureData === 'string' && signatureData.startsWith('data:image')) {
+      if (y > pageH - margin - 1.2) {
+        doc.addPage();
+        doc.setFillColor(0, 0, 0);
+        doc.rect(0, 0, pageW, pageH, 'F');
+        y = margin;
+      }
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9);
+      doc.setTextColor(...LABEL);
+      doc.text('Customer signature', margin, y);
+      y += smallLine;
+      try {
+        const sigW = 3;
+        const sigH = 0.9;
+        doc.addImage(signatureData, 'PNG', margin, y, sigW, sigH);
+        y += sigH + lineHeight;
+      } catch {
+        y += lineHeight;
+      }
+    }
 
     // Payment section if present
     if (job.payment_method || job.payment_amount != null) {
@@ -231,7 +274,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="${filename}"`,
         'Content-Length': String(pdfBuffer.length),
       },
     });

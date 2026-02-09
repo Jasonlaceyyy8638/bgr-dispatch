@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { jsPDF } from 'jspdf';
+import { readFile } from 'fs/promises';
+import path from 'path';
 
 const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Buckeye Garage Door Repair';
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '937-913-4844';
 const BUSINESS_LOCATION = process.env.BUSINESS_LOCATION || 'Dayton';
+
+// Match invoice PDF: red #dc2626, muted #a3a3a3, label #737373, white, green #22c55e, border #262626
+const RED = [220, 38, 38] as [number, number, number];
+const MUTED = [163, 163, 163] as [number, number, number];
+const LABEL = [115, 115, 115] as [number, number, number];
+const WHITE = [255, 255, 255] as [number, number, number];
+const BORDER = [38, 38, 38] as [number, number, number];
 
 export async function GET(
   _req: Request,
@@ -54,51 +63,78 @@ export async function GET(
     const customerName = job.customer_name || '—';
 
     const doc = new jsPDF({ unit: 'in', format: 'letter' });
-    const margin = 0.75;
+    const margin = 0.6;
+    const pageW = 8.5;
+    const pageH = 11;
     let y = margin;
     const lineHeight = 0.2;
     const smallLine = 0.14;
 
-    doc.setFontSize(10);
-    doc.setTextColor(80, 80, 80);
-    doc.text(BUSINESS_NAME, margin, y);
-    y += smallLine;
-    doc.text(`${BUSINESS_LOCATION}, Ohio · ${BUSINESS_PHONE}`, margin, y);
-    y += lineHeight;
+    // Black background (match invoice)
+    doc.setFillColor(0, 0, 0);
+    doc.rect(0, 0, pageW, pageH, 'F');
 
-    doc.setDrawColor(180, 0, 0);
-    doc.setLineWidth(0.02);
-    doc.line(margin, y, 8.5 - margin, y);
-    y += lineHeight;
+    // Logo at top (match invoice layout)
+    let logoAdded = false;
+    try {
+      const logoPath = path.join(process.cwd(), 'public', 'logo.png');
+      const logoBuffer = await readFile(logoPath);
+      const logoBase64 = logoBuffer.toString('base64');
+      const logoW = 2.2;
+      const logoH = 0.65;
+      doc.addImage(logoBase64, 'PNG', margin, y, logoW, logoH);
+      y += logoH + 0.15;
+      logoAdded = true;
+    } catch {
+      // no logo file, use text
+    }
 
-    doc.setFontSize(18);
-    doc.setTextColor(0, 0, 0);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Warranty & Service Agreement', margin, y);
-    y += lineHeight;
+    if (!logoAdded) {
+      doc.setFontSize(10);
+      doc.setTextColor(...LABEL);
+      doc.setFont('helvetica', 'bold');
+      doc.text(BUSINESS_NAME, margin, y);
+      y += smallLine;
+    }
+
+    doc.setDrawColor(...RED);
+    doc.setLineWidth(0.03);
+    doc.line(0, y + 0.1, pageW, y + 0.1);
+    y += lineHeight + 0.15;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.setTextColor(80, 80, 80);
+    doc.setTextColor(...MUTED);
+    doc.text(`${BUSINESS_LOCATION}, Ohio · ${BUSINESS_PHONE}`, margin, y);
+    y += smallLine;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...WHITE);
+    doc.setFontSize(18);
+    doc.text('Warranty & Service Agreement', margin, y);
+    y += lineHeight;
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MUTED);
     doc.text(`Invoice #${invoiceNumber}`, margin, y);
     y += smallLine;
     doc.text(serviceDate, margin, y);
-    y += lineHeight * 1.5;
+    y += lineHeight * 1.2;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    doc.setTextColor(0, 0, 0);
+    doc.setTextColor(...LABEL);
     doc.text('Customer', margin, y);
     doc.text('Servicing technician', margin + 3.5, y);
     y += smallLine;
     doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...WHITE);
     doc.text(customerName, margin, y);
     doc.text(techName || '—', margin + 3.5, y);
-    y += lineHeight * 1.5;
+    y += lineHeight * 1.2;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
-    doc.setTextColor(180, 0, 0);
+    doc.setTextColor(...RED);
     doc.text('Warranty terms', margin, y);
     y += lineHeight;
 
@@ -110,13 +146,15 @@ export async function GET(
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
-    doc.setTextColor(40, 40, 40);
-    const maxWidth = 8.5 - margin * 2;
+    doc.setTextColor(...MUTED);
+    const maxWidth = pageW - margin * 2;
     for (const paragraph of terms) {
       const lines = doc.splitTextToSize(paragraph, maxWidth);
       for (const line of lines) {
-        if (y > 11 - margin) {
+        if (y > pageH - margin - 0.5) {
           doc.addPage();
+          doc.setFillColor(0, 0, 0);
+          doc.rect(0, 0, pageW, pageH, 'F');
           y = margin;
         }
         doc.text(line, margin, y);
@@ -126,20 +164,18 @@ export async function GET(
     }
 
     y += lineHeight;
-    if (y > 11 - margin) {
+    if (y > pageH - margin - 0.5) {
       doc.addPage();
+      doc.setFillColor(0, 0, 0);
+      doc.rect(0, 0, pageW, pageH, 'F');
       y = margin;
     }
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, y, 8.5 - margin, y);
+    doc.setDrawColor(...BORDER);
+    doc.line(margin, y, pageW - margin, y);
     y += lineHeight;
     doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    doc.text(
-      `${BUSINESS_NAME} · ${BUSINESS_LOCATION}, OH · ${BUSINESS_PHONE}`,
-      margin,
-      y
-    );
+    doc.setTextColor(...LABEL);
+    doc.text(`${BUSINESS_NAME} · ${BUSINESS_LOCATION}, OH · ${BUSINESS_PHONE}`, margin, y);
     y += smallLine;
     doc.text('Save or print this document for your records. Thank you for your business.', margin, y);
 
@@ -150,7 +186,7 @@ export async function GET(
       status: 200,
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Content-Disposition': `inline; filename="${filename}"`,
         'Content-Length': String(pdfBuffer.length),
       },
     });

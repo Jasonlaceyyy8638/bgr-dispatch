@@ -116,11 +116,12 @@ export default function TechInvoiceIdPage() {
       alert('Customer signature required.');
       return;
     }
+    const signatureData = sigRef.current.toDataURL('image/png');
     const itemsSummary = ticket.map((i) => `• ${i.part_name}: $${i.custom_price}`).join('\n');
     const desc = `${job?.job_description || job?.service_type || ''}\n\n[AUTHORIZED - $${total.toFixed(2)}]:\n${itemsSummary}\n\n[SIGNED - Work authorized. Payment after completion.]`;
     const { error } = await supabase
       .from('jobs')
-      .update({ price: total, status: 'Authorized', service_type: desc, taxable, tax_amount: tax || null })
+      .update({ price: total, status: 'Authorized', service_type: desc, taxable, tax_amount: tax || null, signature_data: signatureData })
       .eq('id', id);
     if (error) {
       alert('Error saving: ' + error.message);
