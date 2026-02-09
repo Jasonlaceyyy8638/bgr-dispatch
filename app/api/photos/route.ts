@@ -59,7 +59,7 @@ export async function GET() {
     const photosWithJob = list.map((p: { job_id: number | string; customer_name: string | null; address: string | null; [k: string]: unknown }) => {
       const job = jobMap.get(String(p.job_id)) ?? jobMap.get(String(Number(p.job_id)));
       const jobAny = job as Record<string, unknown> | undefined;
-      const customer_name = p.customer_name || job?.customer_name ?? (jobAny?.customerName as string) ?? null;
+      const customer_name = p.customer_name || (job?.customer_name ?? (jobAny?.customerName as string) ?? null);
       const address = p.address || (job ? [job.street_address || job.address, job.city, job.state, job.zip_code].filter(Boolean).join(', ') : null) || null;
       const invoice_number = job?.invoice_number ?? null;
       return { ...p, customer_name, address, invoice_number };
