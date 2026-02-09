@@ -69,8 +69,9 @@ export async function GET(
     const pageW = 8.5;
     const pageH = 11;
     let y = margin;
-    const lineHeight = 0.2;
-    const smallLine = 0.14;
+    const lineHeight = 0.24;
+    const smallLine = 0.17;
+    const sectionGap = 0.38;
 
     function fillPageBg() {
       doc.setFillColor(...BG);
@@ -88,8 +89,8 @@ export async function GET(
       let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 2.5;
-      const maxLogoH = 1.2;
+      const maxLogoW = 2.8;
+      const maxLogoH = 1.35;
       let logoW = Math.min(maxLogoW, wPx / 72);
       let logoH = (hPx / wPx) * logoW;
       if (logoH > maxLogoH) {
@@ -98,7 +99,7 @@ export async function GET(
       }
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
-      y += logoH + 0.35;
+      y += logoH + 0.5;
       logoAdded = true;
     } catch {
       // no logo file, use text
@@ -112,57 +113,58 @@ export async function GET(
       y += smallLine + 0.2;
     }
 
+    y += 0.15;
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
-    doc.line(0, y + 0.1, pageW, y + 0.1);
-    y += lineHeight + 0.2;
+    doc.line(margin, y, pageW - margin, y);
+    y += sectionGap;
 
     // Company + location (match email style)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...WHITE);
     doc.text(BUSINESS_NAME.toUpperCase(), margin, y);
-    y += smallLine + 0.04;
+    y += smallLine + 0.06;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...RED);
     doc.text(`${BUSINESS_LOCATION.toUpperCase()}, OHIO`, margin, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(...WHITE);
     doc.text(BUSINESS_PHONE, margin, y);
-    y += smallLine;
+    y += sectionGap;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...RED);
     doc.setFontSize(18);
     doc.text('Warranty & Service Agreement', margin, y);
-    y += lineHeight;
+    y += lineHeight + 0.08;
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MUTED);
     doc.text(`Invoice #${invoiceNumber}`, margin, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.text(serviceDate, margin, y);
-    y += lineHeight * 1.2;
+    y += sectionGap;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(...LABEL);
     doc.text('Customer', margin, y);
     doc.text('Servicing technician', margin + 3.5, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(customerName, margin, y);
     doc.text(techName || '—', margin + 3.5, y);
-    y += lineHeight * 1.2;
+    y += sectionGap;
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...RED);
     doc.text('Warranty terms', margin, y);
-    y += lineHeight;
+    y += lineHeight + 0.06;
 
     const terms = [
       'Labor warranty (90 days). We warrant our labor for 90 days from the date of service. This covers the work we performed and all labor required to restore your garage door system to an operable condition. For example, when we replace a spring, our labor warranty includes all labor we perform in connection with that repair—including work on cables, torsion tube, drums, and related components—so that the system is returned to safe, operable condition. If a component we did not replace later fails, labor to repair that component is not covered under this warranty.',
@@ -188,7 +190,7 @@ export async function GET(
       y += smallLine * 0.5;
     }
 
-    y += lineHeight;
+    y += sectionGap;
     if (y > pageH - margin - 0.5) {
       doc.addPage();
       fillPageBg();

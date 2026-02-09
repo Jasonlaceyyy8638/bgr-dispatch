@@ -65,8 +65,9 @@ export async function GET(
     const pageW = 8.5;
     const pageH = 11;
     let y = margin;
-    const lineHeight = 0.2;
-    const smallLine = 0.14;
+    const lineHeight = 0.24;
+    const smallLine = 0.17;
+    const sectionGap = 0.38;
 
     function fillPageBg() {
       doc.setFillColor(...BG);
@@ -84,8 +85,8 @@ export async function GET(
       let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 2.5;
-      const maxLogoH = 1.2;
+      const maxLogoW = 2.8;
+      const maxLogoH = 1.35;
       let logoW = Math.min(maxLogoW, wPx / 72);
       let logoH = (hPx / wPx) * logoW;
       if (logoH > maxLogoH) {
@@ -94,7 +95,7 @@ export async function GET(
       }
       const logoX = (pageW - logoW) / 2;
       doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
-      y += logoH + 0.35;
+      y += logoH + 0.5;
       logoAdded = true;
     } catch {
       // no logo file
@@ -107,32 +108,33 @@ export async function GET(
       y += smallLine + 0.2;
     }
 
+    y += 0.15;
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
-    doc.line(0, y + 0.1, pageW, y + 0.1);
-    y += lineHeight + 0.2;
+    doc.line(margin, y, pageW - margin, y);
+    y += sectionGap;
 
     // Company name (match email: BUCKEYE GARAGE DOOR REPAIR)
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...WHITE);
     doc.text(BUSINESS_NAME.toUpperCase(), margin, y);
-    y += smallLine + 0.04;
+    y += smallLine + 0.06;
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
     doc.setTextColor(...MUTED);
     doc.text(`Invoice ${invoiceNumber}`, margin, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...RED);
     doc.setFontSize(11);
     doc.text(`${BUSINESS_LOCATION.toUpperCase()}, OHIO`, margin, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...WHITE);
     doc.setFontSize(10);
     doc.text(BUSINESS_PHONE, margin, y);
-    y += lineHeight * 1.2;
+    y += sectionGap;
 
     // "THANK YOU FOR YOUR BUSINESS" + total (match email: white caps, then big red total)
     doc.setDrawColor(...BORDER);
@@ -151,7 +153,7 @@ export async function GET(
     doc.setTextColor(...WHITE);
     doc.setFont('helvetica', 'bold');
     doc.text(`$${total.toFixed(2)}`, margin + 0.22, y + 0.38);
-    y += 0.6;
+    y += 0.75;
 
     // Customer & date
     doc.setFontSize(9);
@@ -159,12 +161,12 @@ export async function GET(
     doc.setFont('helvetica', 'bold');
     doc.text('Customer', margin, y);
     doc.text('Date', margin + 3.5, y);
-    y += smallLine;
+    y += smallLine + 0.04;
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(job.customer_name || '—', margin, y);
     doc.text(serviceDate, margin + 3.5, y);
-    y += lineHeight * 1.2;
+    y += sectionGap;
 
     // Details (invoice content)
     doc.setFont('helvetica', 'bold');
@@ -186,7 +188,7 @@ export async function GET(
       doc.text(line, margin, y);
       y += smallLine;
     }
-    y += lineHeight;
+    y += sectionGap;
 
     // Customer signature (if saved when job was authorized — run ALTER TABLE jobs ADD COLUMN signature_data text; in Supabase)
     const signatureData = (job as { signature_data?: string | null }).signature_data;
@@ -200,7 +202,7 @@ export async function GET(
       doc.setFontSize(9);
       doc.setTextColor(...LABEL);
       doc.text('Customer signature', margin, y);
-      y += smallLine;
+      y += smallLine + 0.06;
       try {
         const sigW = 3.2;
         const sigH = 1;
@@ -208,7 +210,7 @@ export async function GET(
         doc.setLineWidth(0.01);
         doc.rect(margin, y, sigW, sigH, 'S');
         doc.addImage(signatureData, 'PNG', margin, y, sigW, sigH);
-        y += sigH + lineHeight;
+        y += sigH + sectionGap;
       } catch (err) {
         console.error('Invoice PDF signature image error:', err);
         y += lineHeight;
@@ -222,6 +224,7 @@ export async function GET(
         fillPageBg();
         y = margin;
       }
+      y += sectionGap * 0.5;
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9);
       doc.setTextColor(...LABEL);
@@ -247,7 +250,7 @@ export async function GET(
         doc.text(`Check #: ${job.check_number}`, margin, y);
         y += smallLine;
       }
-      y += lineHeight * 0.5;
+      y += sectionGap * 0.5;
     }
 
     // Subtotal / Tax / Total (matching app)
