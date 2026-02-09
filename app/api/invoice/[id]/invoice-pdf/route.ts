@@ -85,8 +85,8 @@ export async function GET(
       let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
-      const maxLogoW = 2.2;
-      const maxLogoH = 1.0;
+      const maxLogoW = 1.5;
+      const maxLogoH = 1.25;
       const wIn = wPx / 72;
       const hIn = hPx / 72;
       const scale = Math.min(maxLogoW / wIn, maxLogoH / hIn, 1);
