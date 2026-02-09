@@ -85,8 +85,27 @@ export async function GET(
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
       const logoBuffer = await readFile(logoPath);
       const logoBase64 = logoBuffer.toString('base64');
-      let wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
-      let hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      let wPx = 400;
+      let hPx = 120;
+      const isJpeg = logoBuffer[0] === 0xff && logoBuffer[1] === 0xd8;
+      if (isJpeg) {
+        for (let i = 0; i < logoBuffer.length - 9; i++) {
+          if (logoBuffer[i] === 0xff && (logoBuffer[i + 1] === 0xc0 || logoBuffer[i + 1] === 0xc1)) {
+            hPx = logoBuffer.readUInt16BE(i + 5);
+            wPx = logoBuffer.readUInt16BE(i + 7);
+            break;
+          }
+        }
+      } else {
+        const ihdr = logoBuffer.indexOf(Buffer.from([73, 72, 68, 82]));
+        if (ihdr >= 0) {
+          wPx = logoBuffer.readUInt32BE(ihdr + 4);
+          hPx = logoBuffer.readUInt32BE(ihdr + 8);
+        } else if (logoBuffer.length >= 24) {
+          wPx = logoBuffer.readUInt32BE(16);
+          hPx = logoBuffer.readUInt32BE(20);
+        }
+      }
       if (wPx < 1 || wPx > 5000) wPx = 400;
       if (hPx < 1 || hPx > 5000) hPx = 120;
       const maxLogoW = 1.5;
@@ -97,7 +116,7 @@ export async function GET(
       const logoW = wIn * scale;
       const logoH = hIn * scale;
       const logoX = (pageW - logoW) / 2;
-      doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
+      doc.addImage(logoBase64, isJpeg ? 'JPEG' : 'PNG', logoX, y, logoW, logoH);
       y += logoH + 0.35;
       logoAdded = true;
     } catch {
