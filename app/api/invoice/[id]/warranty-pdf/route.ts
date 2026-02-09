@@ -74,16 +74,20 @@ export async function GET(
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageW, pageH, 'F');
 
-    // Logo at top (match invoice layout)
+    // Logo at top: centered, aspect ratio preserved, taller header space (match invoice)
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
       const logoBuffer = await readFile(logoPath);
       const logoBase64 = logoBuffer.toString('base64');
-      const logoW = 2.2;
-      const logoH = 0.65;
-      doc.addImage(logoBase64, 'PNG', margin, y, logoW, logoH);
-      y += logoH + 0.15;
+      const wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
+      const hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      const maxLogoW = 2.5;
+      const logoW = Math.min(maxLogoW, wPx / 72);
+      const logoH = (hPx / wPx) * logoW;
+      const logoX = (pageW - logoW) / 2;
+      doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
+      y += logoH + 0.35;
       logoAdded = true;
     } catch {
       // no logo file, use text
@@ -94,13 +98,13 @@ export async function GET(
       doc.setTextColor(...LABEL);
       doc.setFont('helvetica', 'bold');
       doc.text(BUSINESS_NAME, margin, y);
-      y += smallLine;
+      y += smallLine + 0.2;
     }
 
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
     doc.line(0, y + 0.1, pageW, y + 0.1);
-    y += lineHeight + 0.15;
+    y += lineHeight + 0.2;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');

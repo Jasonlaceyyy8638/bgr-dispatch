@@ -70,16 +70,21 @@ export async function GET(
     doc.setFillColor(0, 0, 0);
     doc.rect(0, 0, pageW, pageH, 'F');
 
-    // Logo at top (match warranty)
+    // Logo at top: centered, aspect ratio preserved, taller header space
     let logoAdded = false;
     try {
       const logoPath = path.join(process.cwd(), 'public', 'logo.png');
       const logoBuffer = await readFile(logoPath);
       const logoBase64 = logoBuffer.toString('base64');
-      const logoW = 2.2;
-      const logoH = 0.65;
-      doc.addImage(logoBase64, 'PNG', margin, y, logoW, logoH);
-      y += logoH + 0.15;
+      // PNG IHDR: width at bytes 16-19, height at 20-23 (big-endian)
+      const wPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(16) : 400;
+      const hPx = logoBuffer.length >= 24 ? logoBuffer.readUInt32BE(20) : 120;
+      const maxLogoW = 2.5; // inches
+      const logoW = Math.min(maxLogoW, wPx / 72);
+      const logoH = (hPx / wPx) * logoW;
+      const logoX = (pageW - logoW) / 2;
+      doc.addImage(logoBase64, 'PNG', logoX, y, logoW, logoH);
+      y += logoH + 0.35;
       logoAdded = true;
     } catch {
       // no logo file
@@ -89,13 +94,13 @@ export async function GET(
       doc.setTextColor(...LABEL);
       doc.setFont('helvetica', 'bold');
       doc.text(BUSINESS_NAME, margin, y);
-      y += smallLine;
+      y += smallLine + 0.2;
     }
 
     doc.setDrawColor(...RED);
     doc.setLineWidth(0.03);
     doc.line(0, y + 0.1, pageW, y + 0.1);
-    y += lineHeight + 0.15;
+    y += lineHeight + 0.2;
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -163,10 +168,10 @@ export async function GET(
     }
     y += lineHeight;
 
-    // Customer signature (if saved)
+    // Customer signature (if saved when job was authorized)
     const signatureData = (job as { signature_data?: string | null }).signature_data;
     if (signatureData && typeof signatureData === 'string' && signatureData.startsWith('data:image')) {
-      if (y > pageH - margin - 1.2) {
+      if (y > pageH - margin - 1.5) {
         doc.addPage();
         doc.setFillColor(0, 0, 0);
         doc.rect(0, 0, pageW, pageH, 'F');
@@ -178,11 +183,12 @@ export async function GET(
       doc.text('Customer signature', margin, y);
       y += smallLine;
       try {
-        const sigW = 3;
-        const sigH = 0.9;
+        const sigW = 3.2;
+        const sigH = 1;
         doc.addImage(signatureData, 'PNG', margin, y, sigW, sigH);
         y += sigH + lineHeight;
-      } catch {
+      } catch (err) {
+        console.error('Invoice PDF signature image error:', err);
         y += lineHeight;
       }
     }
