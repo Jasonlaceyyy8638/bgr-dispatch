@@ -18,6 +18,8 @@ Add columns for job status flow, dispatcher notes, and optional photo:
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS dispatcher_notes text;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS job_photo_url text;
 ALTER TABLE jobs ADD COLUMN IF NOT EXISTS signature_data text;
+-- Partial payments: array of { method: 'cash'|'card'|'check', amount: number, check_number?: string }. Job closes when sum(amount) >= price.
+ALTER TABLE jobs ADD COLUMN IF NOT EXISTS partial_payments jsonb DEFAULT '[]';
 ```
 
 (No change needed for `status` if it already accepts text; use values: `booked`, `en_route`, `on_site`, `Authorized`, `Closed`.)

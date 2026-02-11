@@ -52,10 +52,13 @@ export default function TechInvoiceIdPage() {
     const isCheckPending = job?.payment_method === 'check' && Number(job?.payment_amount) > 0 && !job?.check_photo_url;
     if (isReceipt && (isClosed || isCheckPending)) {
       setStep('receipt');
-      setReceiptTotal(Number(job.payment_amount ?? job.price) || 0);
+      const paid = Array.isArray(job.partial_payments) && job.partial_payments.length > 0
+        ? job.partial_payments.reduce((s: number, p: { amount?: number }) => s + Number(p?.amount ?? 0), 0)
+        : Number(job.payment_amount ?? job.price) || 0;
+      setReceiptTotal(paid);
       setContact((c) => ({ ...c, phone: job.phone_number || '' }));
     }
-  }, [searchParams, job?.status, job?.payment_method, job?.payment_amount, job?.price, job?.phone_number, job?.check_photo_url]);
+  }, [searchParams, job?.status, job?.payment_method, job?.payment_amount, job?.price, job?.phone_number, job?.check_photo_url, job?.partial_payments]);
 
   async function loadJob() {
     const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
@@ -214,7 +217,9 @@ export default function TechInvoiceIdPage() {
   }
 
   const isViewOnly = searchParams.get('view') === '1';
-  const displayTotal = Number(job.payment_amount ?? job.price) || 0;
+  const partialPayments = Array.isArray(job?.partial_payments) ? job.partial_payments : [];
+  const totalFromPartial = partialPayments.reduce((s: number, p: { amount?: number }) => s + Number(p?.amount ?? 0), 0);
+  const displayTotal = totalFromPartial > 0 ? totalFromPartial : Number(job.payment_amount ?? job.price) || 0;
   const invoiceContent = job.service_type || job.job_description || 'No invoice details.';
   const displayInvoiceNumber = job.invoice_number || `INV-${String(job.id).padStart(5, '0')}`;
 
@@ -241,29 +246,49 @@ export default function TechInvoiceIdPage() {
             <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Details</p>
             <pre className="text-white font-mono text-xs whitespace-pre-wrap leading-relaxed">{invoiceContent}</pre>
           </div>
-          {(job.payment_method || job.payment_amount != null) && (
+          {(partialPayments.length > 0 || job.payment_method || job.payment_amount != null) && (
             <div className="bg-neutral-950 border border-neutral-800 p-4 rounded-sm">
               <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-2">Payment</p>
               <div className="space-y-1.5 text-sm">
-                {job.payment_method && (
-                  <p className="text-white">
-                    <span className="text-neutral-500 uppercase">Method:</span>{' '}
-                    <span className="font-semibold uppercase">{job.payment_method}</span>
-                  </p>
-                )}
-                {(job.payment_amount != null || displayTotal > 0) && (
-                  <p className="text-white">
-                    <span className="text-neutral-500 uppercase">Amount:</span>{' '}
-                    <span className="font-bold text-green-500">
-                      ${Number(job.payment_amount ?? job.price ?? 0).toFixed(2)}
-                    </span>
-                  </p>
-                )}
-                {job.payment_method?.toLowerCase() === 'check' && job.check_number && (
-                  <p className="text-white">
-                    <span className="text-neutral-500 uppercase">Check #:</span>{' '}
-                    <span className="font-mono">{job.check_number}</span>
-                  </p>
+                {partialPayments.length > 0 ? (
+                  <>
+                    {partialPayments.map((p: { method?: string; amount?: number; check_number?: string }, i: number) => (
+                      <p key={i} className="text-white">
+                        <span className="text-neutral-500 uppercase">{String(p?.method ?? '').toUpperCase()}:</span>{' '}
+                        <span className="font-semibold text-green-500">${Number(p?.amount ?? 0).toFixed(2)}</span>
+                        {p?.method === 'check' && p?.check_number && (
+                          <span className="text-neutral-500 ml-1">(Check #{p.check_number})</span>
+                        )}
+                      </p>
+                    ))}
+                    <p className="text-white pt-1 border-t border-neutral-800">
+                      <span className="text-neutral-500 uppercase">Total paid:</span>{' '}
+                      <span className="font-bold text-green-500">${displayTotal.toFixed(2)}</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    {job.payment_method && (
+                      <p className="text-white">
+                        <span className="text-neutral-500 uppercase">Method:</span>{' '}
+                        <span className="font-semibold uppercase">{job.payment_method}</span>
+                      </p>
+                    )}
+                    {(job.payment_amount != null || displayTotal > 0) && (
+                      <p className="text-white">
+                        <span className="text-neutral-500 uppercase">Amount:</span>{' '}
+                        <span className="font-bold text-green-500">
+                          ${Number(job.payment_amount ?? job.price ?? 0).toFixed(2)}
+                        </span>
+                      </p>
+                    )}
+                    {job.payment_method?.toLowerCase() === 'check' && job.check_number && (
+                      <p className="text-white">
+                        <span className="text-neutral-500 uppercase">Check #:</span>{' '}
+                        <span className="font-mono">{job.check_number}</span>
+                      </p>
+                    )}
+                  </>
                 )}
                 {job.check_photo_url && (
                   <a

@@ -8,6 +8,16 @@ import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-
 
 type PaymentMethod = 'card' | 'cash' | 'check' | null;
 
+type PartialPayment = { method: string; amount: number; check_number?: string };
+
+function totalPaidFromJob(job: any): number {
+  const pp = job?.partial_payments;
+  if (Array.isArray(pp) && pp.length > 0) {
+    return pp.reduce((sum: number, p: PartialPayment) => sum + Number(p.amount || 0), 0);
+  }
+  return 0;
+}
+
 export default function TechPaymentIdPage() {
   const params = useParams();
   const router = useRouter();
@@ -30,26 +40,45 @@ export default function TechPaymentIdPage() {
       .catch(() => setStripeKeyError(true));
   }, []);
 
+  async function refetchJob() {
+    if (!id) return;
+    const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
+    if (data) setJob(data);
+  }
+
   useEffect(() => {
     if (!id) return;
-    (async () => {
-      const { data } = await supabase.from('jobs').select('*').eq('id', id).single();
-      if (!data) return;
-      setJob(data);
-      const amount = Number(data.price) || 0;
-      if (amount <= 0) return;
-      const res = await fetch('/api/payment-intent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount }),
-      });
-      const json = await res.json();
-      if (json.clientSecret) setClientSecret(json.clientSecret);
-      else if (json.error) setPaymentIntentError(json.error);
-    })();
+    refetchJob();
   }, [id]);
 
-  const amountDue = Number(job?.price) || 0;
+  // Create PaymentIntent only when user selects Card, for the remaining balance (Stripe min $0.50)
+  useEffect(() => {
+    if (!id || method !== 'card' || !job) return;
+    const paid = totalPaidFromJob(job);
+    const price = Number(job?.price) || 0;
+    const due = Math.max(0, price - paid);
+    if (due < 0.5) {
+      setPaymentIntentError(due > 0 ? 'Remaining balance is below card minimum ($0.50). Use cash or check.' : '');
+      return;
+    }
+    setClientSecret('');
+    setPaymentIntentError(null);
+    fetch('/api/payment-intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ amount: due }),
+    })
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.clientSecret) setClientSecret(json.clientSecret);
+        else if (json.error) setPaymentIntentError(json.error);
+      })
+      .catch(() => setPaymentIntentError('Failed to start card payment'));
+  }, [id, method, job?.id, job?.price, job?.partial_payments]);
+
+  const totalPaid = totalPaidFromJob(job);
+  const price = Number(job?.price) || 0;
+  const amountDue = Math.max(0, price - totalPaid);
   const inputClass = 'w-full bg-black border border-neutral-800 p-3 sm:p-4 text-white font-semibold text-sm outline-none focus:border-red-600 rounded-sm';
 
   const goBack = () => router.push(`/tech/job/${id}`);
@@ -66,7 +95,20 @@ export default function TechPaymentIdPage() {
     );
   }
 
-  if (job && amountDue <= 0) {
+  if (job && price > 0 && amountDue <= 0) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
+        <div className="max-w-sm space-y-4">
+          <p className="text-green-500 font-bold uppercase text-sm">Balance paid in full</p>
+          <p className="text-neutral-400 text-sm">Send the receipt or go back to the job.</p>
+          <button type="button" onClick={() => router.push(`/tech/invoice/${id}?receipt=1`)} className="inline-block bg-green-600 text-white font-bold py-3 px-6 uppercase text-xs rounded-sm mr-2">Send receipt</button>
+          <button type="button" onClick={goBack} className="inline-block bg-neutral-800 text-white font-bold py-3 px-6 uppercase text-xs rounded-sm">Back to job</button>
+        </div>
+      </div>
+    );
+  }
+
+  if (job && price <= 0) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-6 text-center">
         <div className="max-w-sm space-y-4">
@@ -104,10 +146,17 @@ export default function TechPaymentIdPage() {
       <div className="min-h-screen bg-black p-4 sm:p-6 text-white">
         <div className="max-w-md mx-auto space-y-6 pt-6">
           <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
-            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            {totalPaid > 0 ? (
+              <>
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Remaining balance</p>
+                <p className="text-xs text-neutral-400 mb-1">${totalPaid.toFixed(2)} paid so far</p>
+              </>
+            ) : (
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            )}
             <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
           </div>
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">How did they pay?</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">How did they pay {totalPaid > 0 ? 'the rest' : ''}?</p>
           <div className="grid grid-cols-1 gap-3">
             <button
               type="button"
@@ -145,14 +194,51 @@ export default function TechPaymentIdPage() {
   // Cash
   if (method === 'cash') {
     return (
-      <CashForm job={job} jobId={id!} amountDue={amountDue} onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)} onBack={() => setMethod(null)} inputClass={inputClass} />
+      <CashForm
+        job={job}
+        jobId={id!}
+        amountDue={amountDue}
+        price={price}
+        onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)}
+        onPartialDone={() => { refetchJob(); setMethod(null); }}
+        onBack={() => setMethod(null)}
+        inputClass={inputClass}
+      />
     );
   }
 
   // Check
   if (method === 'check') {
     return (
-      <CheckForm job={job} jobId={id!} amountDue={amountDue} onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)} onBack={() => setMethod(null)} inputClass={inputClass} />
+      <CheckForm
+        job={job}
+        jobId={id!}
+        amountDue={amountDue}
+        price={price}
+        onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)}
+        onPartialDone={() => { refetchJob(); setMethod(null); }}
+        onBack={() => setMethod(null)}
+        inputClass={inputClass}
+      />
+    );
+  }
+
+  // Card selected but remaining balance below Stripe minimum
+  if (method === 'card' && amountDue > 0 && amountDue < 0.5) {
+    return (
+      <div className="min-h-screen bg-black p-4 sm:p-6 text-white">
+        <div className="max-w-md mx-auto space-y-6 pt-6">
+          <button type="button" onClick={() => setMethod(null)} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
+          <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
+            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Remaining balance</p>
+            <p className="text-3xl font-bold text-white">${amountDue.toFixed(2)}</p>
+            <p className="text-amber-500 text-sm mt-3">Card minimum is $0.50. Use cash or check for the remainder.</p>
+          </div>
+          <button type="button" onClick={() => setMethod(null)} className="w-full py-3 bg-neutral-800 text-white font-bold uppercase text-xs rounded-sm">
+            Choose cash or check
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -163,11 +249,18 @@ export default function TechPaymentIdPage() {
         <div className="max-w-md mx-auto space-y-6 pt-6">
           <button type="button" onClick={() => setMethod(null)} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
           <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
-            <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            {totalPaid > 0 ? (
+              <>
+                <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Remaining balance</p>
+                <p className="text-xs text-neutral-400 mb-1">${totalPaid.toFixed(2)} paid so far</p>
+              </>
+            ) : (
+              <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+            )}
             <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
           </div>
           <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night' } }}>
-            <CardForm job={job} jobId={id ?? ''} onBack={() => setMethod(null)} />
+            <CardForm job={job} jobId={id ?? ''} amountDue={amountDue} price={price} onDone={() => router.push(`/tech/invoice/${id}?receipt=1`)} onPartialDone={() => { refetchJob(); setMethod(null); }} onBack={() => setMethod(null)} />
           </Elements>
         </div>
       </div>
@@ -185,14 +278,18 @@ function CashForm({
   job,
   jobId,
   amountDue,
+  price,
   onDone,
+  onPartialDone,
   onBack,
   inputClass,
 }: {
   job: any;
   jobId: string;
   amountDue: number;
+  price: number;
   onDone: () => void;
+  onPartialDone: () => void;
   onBack: () => void;
   inputClass: string;
 }) {
@@ -208,35 +305,48 @@ function CashForm({
       setError('Enter the amount of cash received.');
       return;
     }
+    if (amount > amountDue) {
+      setError(`Amount cannot exceed remaining balance ($${amountDue.toFixed(2)}).`);
+      return;
+    }
     setSaving(true);
-    const { error: err } = await supabase
-      .from('jobs')
-      .update({
-        status: 'Closed',
-        payment_method: 'cash',
-        payment_amount: amount,
-      })
-      .eq('id', jobId);
+    const existing: PartialPayment[] = Array.isArray(job?.partial_payments) ? job.partial_payments : [];
+    const updated = [...existing, { method: 'cash', amount }];
+    const newTotal = updated.reduce((s, p) => s + Number(p.amount), 0);
+    const isPaidInFull = newTotal >= price;
+    const update: Record<string, unknown> = {
+      partial_payments: updated,
+      payment_method: 'cash',
+      payment_amount: isPaidInFull ? price : newTotal,
+    };
+    if (isPaidInFull) update.status = 'Closed';
+    const { error: err } = await supabase.from('jobs').update(update).eq('id', jobId);
     if (err) {
       setSaving(false);
       setError(err.message);
       return;
     }
-    const phone = (job?.phone_number || '').toString().trim();
-    const customerName = (job?.customer_name || '').toString().trim();
-    if (phone && customerName) {
-      try {
-        const r = await fetch('/api/customers/upsert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: customerName, phone }),
-        });
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok && j?.error) console.warn('Customer save:', j.error);
-      } catch (_) {}
+    if (isPaidInFull) {
+      const phone = (job?.phone_number || '').toString().trim();
+      const customerName = (job?.customer_name || '').toString().trim();
+      if (phone && customerName) {
+        try {
+          const r = await fetch('/api/customers/upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: customerName, phone }),
+          });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok && j?.error) console.warn('Customer save:', j.error);
+        } catch (_) {}
+        onDone();
+      } else {
+        onDone();
+      }
+    } else {
+      onPartialDone();
     }
     setSaving(false);
-    onDone();
   }
 
   return (
@@ -244,15 +354,16 @@ function CashForm({
       <div className="max-w-md mx-auto space-y-6 pt-6">
         <button type="button" onClick={onBack} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
         <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Remaining balance</p>
           <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
         </div>
         <form onSubmit={submit} className="space-y-4">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Enter amount of cash received (required)</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Enter amount of cash received (up to ${amountDue.toFixed(2)})</p>
           <input
             type="number"
             step="0.01"
             min="0"
+            max={amountDue}
             required
             className={inputClass}
             placeholder="0.00"
@@ -261,7 +372,7 @@ function CashForm({
           />
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={saving} className="w-full bg-green-600 hover:bg-green-500 py-4 font-bold uppercase text-sm text-white rounded-sm disabled:opacity-50">
-            {saving ? 'Saving…' : 'Record cash & close job'}
+            {saving ? 'Saving…' : (parseFloat(cashReceived) || 0) >= amountDue ? 'Record cash & close job' : 'Record cash'}
           </button>
         </form>
       </div>
@@ -273,18 +384,21 @@ function CheckForm({
   job,
   jobId,
   amountDue,
+  price,
   onDone,
+  onPartialDone,
   onBack,
   inputClass,
 }: {
   job: any;
   jobId: string;
   amountDue: number;
+  price: number;
   onDone: () => void;
+  onPartialDone: () => void;
   onBack: () => void;
   inputClass: string;
 }) {
-  // Pre-fill if job already has check info saved (e.g. they came back after sending receipt)
   const [checkNumber, setCheckNumber] = useState(() => (job?.check_number ?? '').toString());
   const [checkAmount, setCheckAmount] = useState(() =>
     job?.payment_method === 'check' && job?.payment_amount != null ? String(Number(job.payment_amount)) : ''
@@ -300,27 +414,36 @@ function CheckForm({
       setError('Enter the check amount.');
       return;
     }
+    if (amount > amountDue) {
+      setError(`Amount cannot exceed remaining balance ($${amountDue.toFixed(2)}).`);
+      return;
+    }
     if (!checkNumber.trim()) {
       setError('Enter the check number.');
       return;
     }
     setSaving(true);
-    // Save check amount and number only; do not close job yet. Tech will send receipt, then take photo and close on invoice page.
-    const { error: err } = await supabase
-      .from('jobs')
-      .update({
-        payment_method: 'check',
-        payment_amount: amount,
-        check_number: checkNumber.trim(),
-      })
-      .eq('id', jobId);
+    const existing: PartialPayment[] = Array.isArray(job?.partial_payments) ? job.partial_payments : [];
+    const updated = [...existing, { method: 'check', amount, check_number: checkNumber.trim() }];
+    const newTotal = updated.reduce((s, p) => s + Number(p.amount), 0);
+    const isPaidInFull = newTotal >= price;
+    const lastPayment = updated[updated.length - 1];
+    const update: Record<string, unknown> = {
+      partial_payments: updated,
+      payment_method: 'check',
+      payment_amount: lastPayment?.amount ?? amount,
+      check_number: checkNumber.trim(),
+    };
+    if (isPaidInFull) update.payment_amount = price;
+    const { error: err } = await supabase.from('jobs').update(update).eq('id', jobId);
     if (err) {
       setSaving(false);
       setError(err.message);
       return;
     }
     setSaving(false);
-    onDone();
+    if (isPaidInFull) onDone();
+    else onPartialDone();
   }
 
   return (
@@ -328,7 +451,7 @@ function CheckForm({
       <div className="max-w-md mx-auto space-y-6 pt-6">
         <button type="button" onClick={onBack} className="text-neutral-500 font-bold uppercase text-xs">← Change payment method</button>
         <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-sm text-center">
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Total due</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mb-1">Remaining balance</p>
           <p className="text-3xl sm:text-4xl font-bold text-white">${amountDue.toFixed(2)}</p>
         </div>
         <form onSubmit={submit} className="space-y-4">
@@ -341,18 +464,19 @@ function CheckForm({
             value={checkNumber}
             onChange={(e) => setCheckNumber(e.target.value)}
           />
-          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Amount received (required)</p>
+          <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider">Amount (up to ${amountDue.toFixed(2)})</p>
           <input
             type="number"
             step="0.01"
             min="0"
+            max={amountDue}
             required
             className={inputClass}
             placeholder="0.00"
             value={checkAmount}
             onChange={(e) => setCheckAmount(e.target.value)}
           />
-          <p className="text-neutral-500 text-xs">Next: send receipt to customer, then take a photo of the check to close the job.</p>
+          <p className="text-neutral-500 text-xs">Next: send receipt to customer. If this pays in full, take a photo of the check on the invoice page to close the job.</p>
           {error && <p className="text-red-500 text-sm">{error}</p>}
           <button type="submit" disabled={saving} className="w-full bg-green-600 hover:bg-green-500 py-4 font-bold uppercase text-sm text-white rounded-sm disabled:opacity-50">
             {saving ? 'Saving…' : 'Continue → Send receipt'}
@@ -363,10 +487,25 @@ function CheckForm({
   );
 }
 
-function CardForm({ job, jobId, onBack }: { job: any; jobId: string; onBack: () => void }) {
+function CardForm({
+  job,
+  jobId,
+  amountDue,
+  price,
+  onDone,
+  onPartialDone,
+  onBack,
+}: {
+  job: any;
+  jobId: string;
+  amountDue: number;
+  price: number;
+  onDone: () => void;
+  onPartialDone: () => void;
+  onBack: () => void;
+}) {
   const stripe = useStripe();
   const elements = useElements();
-  const router = useRouter();
   const [processing, setProcessing] = useState(false);
 
   async function submit(e: React.FormEvent) {
@@ -383,20 +522,35 @@ function CardForm({ job, jobId, onBack }: { job: any; jobId: string; onBack: () 
       setProcessing(false);
       return;
     }
-    await supabase.from('jobs').update({ status: 'Closed', payment_method: 'card' }).eq('id', jobId);
-    const phone = (job?.phone_number || '').toString().trim();
-    const customerName = (job?.customer_name || '').toString().trim();
-    if (phone && customerName) {
-      try {
-        await fetch('/api/customers/upsert', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: customerName, phone }),
-        });
-      } catch (_) {}
+    const existing: PartialPayment[] = Array.isArray(job?.partial_payments) ? job.partial_payments : [];
+    const updated = [...existing, { method: 'card', amount: amountDue }];
+    const newTotal = updated.reduce((s, p) => s + Number(p.amount), 0);
+    const isPaidInFull = newTotal >= price;
+    const update: Record<string, unknown> = {
+      partial_payments: updated,
+      payment_method: 'card',
+      payment_amount: isPaidInFull ? price : newTotal,
+    };
+    if (isPaidInFull) update.status = 'Closed';
+    await supabase.from('jobs').update(update).eq('id', jobId);
+    if (isPaidInFull) {
+      const phone = (job?.phone_number || '').toString().trim();
+      const customerName = (job?.customer_name || '').toString().trim();
+      if (phone && customerName) {
+        try {
+          await fetch('/api/customers/upsert', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: customerName, phone }),
+          });
+        } catch (_) {}
+      }
+      alert('Payment successful. Sending you to send the receipt.');
+      onDone();
+    } else {
+      onPartialDone();
     }
-    alert('Payment successful. Sending you to send the receipt.');
-    router.push(`/tech/invoice/${jobId}?receipt=1`);
+    setProcessing(false);
   }
 
   return (

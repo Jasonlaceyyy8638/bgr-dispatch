@@ -42,7 +42,7 @@ export async function GET(
     const { data: job } = await supabase
       .from('jobs')
       .select(
-        'id, customer_name, invoice_number, created_at, service_type, job_description, price, tax_amount, taxable, payment_method, payment_amount, check_number, status, signature_data'
+        'id, customer_name, invoice_number, created_at, service_type, job_description, price, tax_amount, taxable, payment_method, payment_amount, check_number, status, signature_data, partial_payments'
       )
       .eq('id', id.trim())
       .single();
@@ -202,6 +202,23 @@ export async function GET(
     }
     y += sectionGap * 0.8;
 
+    // Signature authorization wording
+    if (y > pageH - margin - 1.5) {
+      doc.addPage();
+      fillPageBg();
+      y = margin;
+    }
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    const authLine = 'By signing below, the customer authorizes the work described above to be performed in full at the agreed price.';
+    const authLines = doc.splitTextToSize(authLine, pageW - margin * 2);
+    for (const line of authLines) {
+      doc.text(line, margin, y);
+      y += smallLine;
+    }
+    y += smallLine * 0.5;
+
     // Customer signature (if saved when job was authorized — run ALTER TABLE jobs ADD COLUMN signature_data text; in Supabase)
     const signatureData = (job as { signature_data?: string | null }).signature_data;
     if (signatureData && typeof signatureData === 'string' && signatureData.startsWith('data:image')) {
@@ -232,7 +249,9 @@ export async function GET(
     }
 
     // Payment section if present
-    if (job.payment_method || job.payment_amount != null) {
+    const partialPayments = (job as { partial_payments?: Array<{ method?: string; amount?: number }> }).partial_payments;
+    const hasPartial = Array.isArray(partialPayments) && partialPayments.length > 0;
+    if (hasPartial || job.payment_method || job.payment_amount != null) {
       if (y > pageH - margin - 0.6) {
         doc.addPage();
         fillPageBg();
@@ -246,23 +265,42 @@ export async function GET(
       y += lineHeight;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9);
-      if (job.payment_method) {
-        doc.setTextColor(...LIGHT);
-        doc.text(`Method: ${String(job.payment_method).toUpperCase()}`, margin, y);
-        y += smallLine;
-      }
-      if (job.payment_amount != null || total > 0) {
+      if (hasPartial) {
+        for (const p of partialPayments!) {
+          const amt = Number(p?.amount ?? 0);
+          if (amt <= 0) continue;
+          const method = String(p?.method ?? '').toUpperCase();
+          doc.setTextColor(...LABEL);
+          doc.text(`${method}:`, margin, y);
+          doc.setTextColor(...GREEN);
+          doc.text(`$${amt.toFixed(2)}`, margin + 1.2, y);
+          doc.setTextColor(...LIGHT);
+          y += smallLine;
+        }
         doc.setTextColor(...LABEL);
-        doc.text('Amount:', margin, y);
+        doc.text('Total paid:', margin, y);
         doc.setTextColor(...GREEN);
         doc.text(`$${total.toFixed(2)}`, margin + 1.2, y);
-        doc.setTextColor(...LIGHT);
         y += smallLine;
-      }
-      if (job.payment_method?.toLowerCase() === 'check' && job.check_number) {
-        doc.setTextColor(...LIGHT);
-        doc.text(`Check #: ${job.check_number}`, margin, y);
-        y += smallLine;
+      } else {
+        if (job.payment_method) {
+          doc.setTextColor(...LIGHT);
+          doc.text(`Method: ${String(job.payment_method).toUpperCase()}`, margin, y);
+          y += smallLine;
+        }
+        if (job.payment_amount != null || total > 0) {
+          doc.setTextColor(...LABEL);
+          doc.text('Amount:', margin, y);
+          doc.setTextColor(...GREEN);
+          doc.text(`$${total.toFixed(2)}`, margin + 1.2, y);
+          doc.setTextColor(...LIGHT);
+          y += smallLine;
+        }
+        if (job.payment_method?.toLowerCase() === 'check' && job.check_number) {
+          doc.setTextColor(...LIGHT);
+          doc.text(`Check #: ${job.check_number}`, margin, y);
+          y += smallLine;
+        }
       }
       y += sectionGap * 0.3;
     }
