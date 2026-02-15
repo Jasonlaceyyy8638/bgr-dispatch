@@ -180,7 +180,7 @@ export default function AdminTimeClocksPage() {
           Time <span className="text-red-600">clocks</span>
         </h1>
         <p className="text-[10px] font-bold text-neutral-500 uppercase tracking-wider mt-1">
-          View punches, export pay period, send “still clocked in” reminders, edit punches (admin).
+          View punches, export pay period, send reminders, edit punches (admin).
         </p>
         <div className="flex flex-wrap items-center gap-4 mt-4">
           <label className="flex items-center gap-2">

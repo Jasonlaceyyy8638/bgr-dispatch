@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Truck, Users, Package, Wallet, Menu, X, Calendar, BarChart2, Camera, Building2, UserCog, LogIn } from 'lucide-react';
+import { LayoutDashboard, Truck, Users, Package, Wallet, Menu, X, Calendar, BarChart2, Camera, Building2, UserCog, LogIn, Clock } from 'lucide-react';
 
 export default function MobileNav({ userRole }: { userRole: string | null }) {
   const pathname = usePathname();
@@ -96,6 +96,7 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
               {isDispatch && menuLink('/dispatch/schedule', 'Schedule', Calendar)}
               {isDispatch && menuLink('/customers', 'Customers', Users)}
               {isDispatch && menuLink('/photos', 'Photos', Camera)}
+              {isDispatch && menuLink('/admin/time-clocks', 'Time clocks', Clock)}
               {userRole === 'admin' && (
                 <>
                   <div className="my-4 mx-4 h-px bg-neutral-800" />
