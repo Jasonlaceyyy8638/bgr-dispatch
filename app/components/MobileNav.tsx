@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Truck, Users, Package, Wallet, Menu, X, Calendar, BarChart2, Camera, Building2, UserCog, LogIn, Clock } from 'lucide-react';
+import TimeClockWidget from './TimeClockWidget';
 
 export default function MobileNav({ userRole }: { userRole: string | null }) {
   const pathname = usePathname();
@@ -27,7 +28,7 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
   };
 
   const isDispatch = userRole === 'admin' || userRole === 'dispatcher';
-  const showHamburger = isDispatch;
+  const showHamburger = true;
 
   const menuLink = (href: string, label: string, Icon: React.ComponentType<{ size?: number; className?: string }>) => {
     const isActive = pathname === href;
@@ -82,7 +83,7 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
             }`}
           >
             <div className="flex items-center justify-between p-4 border-b border-neutral-900">
-              <span className="font-bold uppercase tracking-wider text-white text-sm">More</span>
+              <span className="font-bold uppercase tracking-wider text-white text-sm">Menu</span>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
@@ -92,7 +93,10 @@ export default function MobileNav({ userRole }: { userRole: string | null }) {
                 <X size={24} />
               </button>
             </div>
+            <TimeClockWidget />
             <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
+              {menuLink('/', 'Dashboard', LayoutDashboard)}
+              {isDispatch && menuLink('/dispatch', 'Dispatch', Truck)}
               {isDispatch && menuLink('/dispatch/schedule', 'Schedule', Calendar)}
               {isDispatch && menuLink('/customers', 'Customers', Users)}
               {isDispatch && menuLink('/photos', 'Photos', Camera)}

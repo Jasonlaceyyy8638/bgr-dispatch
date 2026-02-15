@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import UserMenu from './UserMenu';
+import TimeClockWidget from './TimeClockWidget';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -37,6 +38,8 @@ export default function Sidebar() {
       <div className="flex justify-center py-8 px-4 border-b border-neutral-900">
         <img src="/logo.png" alt="BGR Logo" className="w-full max-w-[200px] h-auto object-contain" />
       </div>
+
+      <TimeClockWidget />
 
       <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-0.5">
         {navLink('/', 'Dashboard')}

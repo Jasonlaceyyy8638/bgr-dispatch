@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     }
 
     const rows: string[][] = [
-      ['Tech', 'Date', 'Clock In', 'Clock Out', 'Break (min)', 'Worked (min)', 'Worked (hours)', 'Job ID', 'Edited', 'Note'],
+      ['Name', 'Date', 'In', 'Out', 'Hours', 'Break'],
     ];
     for (const e of list) {
       const mins = workedMinutes(e);
@@ -65,19 +65,15 @@ export async function GET(request: Request) {
             ? (Date.now() - new Date(e.break_start).getTime()) / 60000
             : 0;
       const date = e.clock_in.slice(0, 10);
-      const clockIn = new Date(e.clock_in).toLocaleString();
-      const clockOut = e.clock_out ? new Date(e.clock_out).toLocaleString() : '';
+      const clockIn = new Date(e.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const clockOut = e.clock_out ? new Date(e.clock_out).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : '';
       rows.push([
         techNames[e.tech_id] || e.tech_id,
         date,
         clockIn,
         clockOut,
-        String(Math.round(breakMins)),
-        String(Math.round(mins)),
         (mins / 60).toFixed(2),
-        e.job_id != null ? String(e.job_id) : '',
-        e.edited_at ? 'Yes' : '',
-        (e.edit_note || '').replace(/"/g, '""'),
+        String(Math.round(breakMins)),
       ]);
     }
 
