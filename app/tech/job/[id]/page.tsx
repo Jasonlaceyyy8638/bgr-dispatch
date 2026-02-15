@@ -19,12 +19,32 @@ export default function TechJobPage() {
   const [jobPhotos, setJobPhotos] = useState<{ id: string; photo_url: string }[]>([]);
   const takePicInputRef = useRef<HTMLInputElement>(null);
   const chooseFileInputRef = useRef<HTMLInputElement>(null);
+  const [techId, setTechId] = useState<string | null>(null);
+  const [timeEntries, setTimeEntries] = useState<{ clock_out: string | null; job_id?: number | null }[]>([]);
+  const [clockLoading, setClockLoading] = useState(false);
 
   const id = Array.isArray(params?.id) ? params.id[0] : params?.id;
+  const jobIdNum = id ? Number(id) : null;
 
   useEffect(() => {
     if (id) load();
   }, [id]);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem('tech_user') || '{}');
+      if (user?.id) setTechId(user.id);
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!techId) return;
+    const date = new Date().toISOString().slice(0, 10);
+    fetch(`/api/time-clock?tech_id=${encodeURIComponent(techId)}&date=${date}`)
+      .then((r) => r.json())
+      .then((json) => setTimeEntries(Array.isArray(json.entries) ? json.entries : []))
+      .catch(() => setTimeEntries([]));
+  }, [techId]);
 
   const STORAGE_KEY = 'job-photos';
 
@@ -195,6 +215,32 @@ export default function TechJobPage() {
     : '#';
   const notes = job.job_description || job.service_type || 'No notes.';
 
+  const isClockedIn = timeEntries.some((e) => !e.clock_out);
+  const openEntry = timeEntries.length > 0 && !timeEntries[timeEntries.length - 1].clock_out ? timeEntries[timeEntries.length - 1] : null;
+  const isClockedInToThisJob = openEntry && jobIdNum != null && openEntry.job_id === jobIdNum;
+
+  async function fetchTimeEntries() {
+    if (!techId) return;
+    const date = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`/api/time-clock?tech_id=${encodeURIComponent(techId)}&date=${date}`);
+    const json = await res.json().catch(() => ({}));
+    setTimeEntries(Array.isArray(json.entries) ? json.entries : []);
+  }
+
+  async function handleClockInToJob() {
+    if (!techId || clockLoading || jobIdNum == null) return;
+    setClockLoading(true);
+    const res = await fetch('/api/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'in', tech_id: techId, job_id: jobIdNum }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setClockLoading(false);
+    if (res.ok && json.ok) fetchTimeEntries();
+    else if (json?.error) alert(json.error);
+  }
+
   return (
     <div className="max-w-2xl mx-auto pb-36 sm:pb-8">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-4 mb-6 border-b border-neutral-800 pb-4">
@@ -229,6 +275,26 @@ export default function TechJobPage() {
           <span className="text-white font-bold uppercase text-xs tracking-wider">Call</span>
         </a>
       </div>
+
+      {/* Time clock — clock in to this job */}
+      {techId && jobIdNum != null && (
+        <div className="mb-4 p-3 bg-neutral-950 border border-neutral-800 rounded-sm">
+          {isClockedInToThisJob ? (
+            <p className="text-[10px] font-bold text-green-500 uppercase tracking-wider">Clocked in to this job</p>
+          ) : isClockedIn ? (
+            <p className="text-[10px] text-neutral-500 uppercase">Clocked in (general). Clock out on dashboard to start time on this job.</p>
+          ) : (
+            <button
+              type="button"
+              onClick={handleClockInToJob}
+              disabled={clockLoading}
+              className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2 px-4 uppercase text-xs rounded-sm"
+            >
+              {clockLoading ? '…' : 'Clock in to this job'}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Status: En route / On site — only when not Closed */}
       {job.status !== 'Closed' && job.status !== 'Authorized' && (

@@ -68,6 +68,39 @@ This lets the app (using the anon key) save, load, and delete photos even withou
 
 When a job gets a photo (Take pic, Choose file, or paste URL), the app inserts a row here. The Photos page reads from this table and supports search by customer name.
 
+## Time clock (tech clock in/out)
+
+For the Time clock feature (tech dashboard + admin time clocks page):
+
+```sql
+CREATE TABLE IF NOT EXISTS time_entries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  tech_id uuid NOT NULL REFERENCES tech_users(id) ON DELETE CASCADE,
+  clock_in timestamptz NOT NULL DEFAULT now(),
+  clock_out timestamptz,
+  created_at timestamptz DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS time_entries_tech_id_clock_in ON time_entries(tech_id, clock_in);
+
+ALTER TABLE time_entries ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon to manage time_entries" ON time_entries;
+CREATE POLICY "Allow anon to manage time_entries"
+  ON time_entries FOR ALL TO anon USING (true) WITH CHECK (true);
+
+-- Optional: break/lunch and job-linked time and admin edit
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS break_start timestamptz;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS break_end timestamptz;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS job_id bigint REFERENCES jobs(id) ON DELETE SET NULL;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS edited_at timestamptz;
+ALTER TABLE time_entries ADD COLUMN IF NOT EXISTS edit_note text;
+```
+
+Worked time for an entry = (clock_out − clock_in) minus (break_end − break_start) when both break fields are set. Break in/out only applies to the current open (clock_out IS NULL) entry.
+
+**Reminders:** To remind techs who left a punch open (e.g. forgot to clock out), call `POST /api/time-clock/remind` daily (e.g. from a cron job). It finds open entries with `clock_in` before today and sends SMS via RingCentral (if configured). No SMS is sent if RingCentral env vars or tech phone numbers are missing.
+
 ## Business settings (optional)
 
 To persist company name, phone, tax rate, card fee %, and review link from the Admin → Business settings page:

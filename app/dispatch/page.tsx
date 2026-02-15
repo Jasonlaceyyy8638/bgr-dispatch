@@ -7,6 +7,8 @@ import { useRouter } from 'next/navigation';
 
 const STATUS_OPTIONS = ['booked', 'en_route', 'on_site', 'Authorized', 'Closed'];
 
+type TimeEntry = { id: string; clock_in: string; clock_out: string | null; break_start?: string | null; break_end?: string | null; job_id?: number | null };
+
 export default function DispatchPage() {
   const router = useRouter();
   const [jobs, setJobs] = useState<any[]>([]);
@@ -16,6 +18,9 @@ export default function DispatchPage() {
   const [notesJob, setNotesJob] = useState<any>(null);
   const [notesText, setNotesText] = useState('');
   const [updating, setUpdating] = useState(false);
+  const [clockUserId, setClockUserId] = useState<string | null>(null);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [clockLoading, setClockLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -24,11 +29,98 @@ export default function DispatchPage() {
         router.replace('/');
         return;
       }
+      if (user?.id) setClockUserId(user.id);
     } catch {
       router.replace('/');
       return;
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!clockUserId) return;
+    const date = new Date().toISOString().slice(0, 10);
+    fetch(`/api/time-clock?tech_id=${encodeURIComponent(clockUserId)}&date=${date}`)
+      .then((r) => r.json())
+      .then((json) => setTimeEntries(Array.isArray(json.entries) ? json.entries : []))
+      .catch(() => setTimeEntries([]));
+  }, [clockUserId]);
+
+  async function fetchClockEntries() {
+    if (!clockUserId) return;
+    const date = new Date().toISOString().slice(0, 10);
+    const res = await fetch(`/api/time-clock?tech_id=${encodeURIComponent(clockUserId)}&date=${date}`);
+    const json = await res.json().catch(() => ({}));
+    setTimeEntries(Array.isArray(json.entries) ? json.entries : []);
+  }
+
+  async function handleClockIn() {
+    if (!clockUserId || clockLoading) return;
+    setClockLoading(true);
+    const res = await fetch('/api/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'in', tech_id: clockUserId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setClockLoading(false);
+    if (res.ok && json.ok) fetchClockEntries();
+    else if (json?.error) alert(json.error);
+  }
+
+  async function handleClockOut() {
+    if (!clockUserId || clockLoading) return;
+    setClockLoading(true);
+    const res = await fetch('/api/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'out', tech_id: clockUserId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setClockLoading(false);
+    if (res.ok && json.ok) fetchClockEntries();
+    else if (json?.error) alert(json.error);
+  }
+
+  async function handleBreakIn() {
+    if (!clockUserId || clockLoading) return;
+    setClockLoading(true);
+    const res = await fetch('/api/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'break_in', tech_id: clockUserId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setClockLoading(false);
+    if (res.ok && json.ok) fetchClockEntries();
+    else if (json?.error) alert(json.error);
+  }
+
+  async function handleBreakOut() {
+    if (!clockUserId || clockLoading) return;
+    setClockLoading(true);
+    const res = await fetch('/api/time-clock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'break_out', tech_id: clockUserId }),
+    });
+    const json = await res.json().catch(() => ({}));
+    setClockLoading(false);
+    if (res.ok && json.ok) fetchClockEntries();
+    else if (json?.error) alert(json.error);
+  }
+
+  const isClockedIn = timeEntries.some((e) => !e.clock_out);
+  const lastEntry = timeEntries.length > 0 ? timeEntries[timeEntries.length - 1] : null;
+  const isOnBreak = lastEntry?.break_start && !lastEntry?.break_end;
+  const totalMinutesToday = timeEntries.reduce((sum, e) => {
+    const end = e.clock_out ? new Date(e.clock_out).getTime() : Date.now();
+    let mins = (end - new Date(e.clock_in).getTime()) / 60000;
+    if (e.break_start && e.break_end) mins -= (new Date(e.break_end).getTime() - new Date(e.break_start).getTime()) / 60000;
+    else if (e.break_start && !e.clock_out) mins -= (Date.now() - new Date(e.break_start).getTime()) / 60000;
+    return sum + mins;
+  }, 0);
+  const hoursToday = Math.floor(totalMinutesToday / 60);
+  const minsToday = Math.round(totalMinutesToday % 60);
 
   useEffect(() => {
     async function load() {
@@ -117,6 +209,64 @@ export default function DispatchPage() {
           </Link>
         </div>
       </div>
+
+      {clockUserId && (
+        <section className="mb-6 bg-neutral-950 border border-neutral-800 rounded-sm p-4">
+          <h2 className="text-sm font-bold uppercase text-white tracking-wider mb-3">Time clock</h2>
+          <div className="flex flex-wrap items-center gap-3">
+            {isClockedIn ? (
+              <>
+                <span className="text-[10px] font-bold text-green-500 uppercase tracking-wider">
+                  {isOnBreak ? 'On break' : `Clocked in ${lastEntry ? new Date(lastEntry.clock_in).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}`}
+                </span>
+                {isOnBreak ? (
+                  <button
+                    type="button"
+                    onClick={handleBreakOut}
+                    disabled={clockLoading}
+                    className="bg-amber-600 hover:bg-amber-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 uppercase text-xs rounded-sm"
+                  >
+                    {clockLoading ? '…' : 'End break'}
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={handleBreakIn}
+                      disabled={clockLoading}
+                      className="bg-neutral-600 hover:bg-neutral-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 uppercase text-xs rounded-sm"
+                    >
+                      {clockLoading ? '…' : 'Break'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleClockOut}
+                      disabled={clockLoading}
+                      className="bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 uppercase text-xs rounded-sm"
+                    >
+                      {clockLoading ? '…' : 'Clock out'}
+                    </button>
+                  </>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleClockIn}
+                disabled={clockLoading}
+                className="bg-green-600 hover:bg-green-500 disabled:opacity-50 text-white font-bold py-2.5 px-4 uppercase text-xs rounded-sm"
+              >
+                {clockLoading ? '…' : 'Clock in'}
+              </button>
+            )}
+            {(timeEntries.length > 0 || totalMinutesToday > 0) && (
+              <span className="text-[10px] text-neutral-500 uppercase">
+                Worked today: {hoursToday}h {minsToday}m
+              </span>
+            )}
+          </div>
+        </section>
+      )}
 
       <div className="bg-neutral-950 border border-neutral-800 rounded-sm overflow-hidden">
         <div className="hidden sm:grid sm:grid-cols-6 gap-4 p-3 sm:p-4 bg-neutral-900 text-[10px] font-bold uppercase text-neutral-500 tracking-wider">

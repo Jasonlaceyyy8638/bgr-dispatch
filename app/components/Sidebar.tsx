@@ -44,6 +44,7 @@ export default function Sidebar() {
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/dispatch/schedule', 'Schedule')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/customers', 'Customers')}
         {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/photos', 'Photos')}
+        {(userRole === 'admin' || userRole === 'dispatcher') && navLink('/admin/time-clocks', 'Time clocks')}
 
         {userRole === 'admin' && (
           <>
